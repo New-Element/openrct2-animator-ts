@@ -1,0 +1,47 @@
+[
+  {
+    "trigger": {
+      "type": "rideEnters",
+      "rideId": 0,
+      "tile": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "ticksPerFrame": 10,
+    "scope": {
+      "type": "tileRange",
+      "start": {
+        "x": 0,
+        "y": 0
+      },
+      "end": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "frames": [
+      {
+        "type": "repeat",
+        "iMin": 0,
+        "iMax": 100,
+        "actions": [
+          {
+            "type": "recolourObjects",
+            "chanceCalculator": {
+              "type": "random",
+              "total": "numObjects",
+              "multiplier": {
+                "type": "baseHeight",
+                "range": {
+                  "min": 40,
+                  "max": 45
+                }
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+]
