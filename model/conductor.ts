@@ -2,56 +2,98 @@
 
 import _ from "lodash";
 import AnimationsArray from "./animation/animationsArray";
+import AnimationRun from "./animation/animationRun";
+import Animation from "./animation/animation";
+import {AnimationTarget} from "./animation/animationTarget";
+import createAnimationRun from "./animation/createAnimationRun";
 
 export default class Conductor {
     animationsArray: AnimationsArray;
     tickCount: number = 0;
+    animationRuns: AnimationRun[];
+    animationRunI: number;
 
     constructor() {
         this.animationsArray = new AnimationsArray();
         this.animationsArray.load();
         context.subscribe('interval.tick', this.tick.bind(this));
+        this.animationRuns = [];
+        this.animationRunI = 0;
     }
 
-    tick() {
+    tick(): void {
         this.tickCount += 1;
         if (this.tickCount === 1000) {
             this.tickCount = 0; // just prevent dealing with stupidly high numbers here
         }
-        this.animationsArray.items.forEach(this.tickAnimation.bind(this));
+
+        for (const animation in this.animationsArray.items) {
+            this.maybeStartRun(this.animationsArray.items[animation]);
+        }
+
+        for (const run in this.animationRuns) {
+            this.maybeIterateRun(this.animationRuns[run]);
+        }
     }
 
-    tickAnimation(animation) {
-        if (animation.hasRun && animation.startType === 'once' && !animation.running) {
+    maybeStartRun(animation: Animation): void {
+        let target = animation.getStartTarget();
+        if (!target) {
             return;
         }
-        if (!animation.running) {
-            this.maybeStartAnimation(animation);
-        }
-        if (animation.running) {
-            if (this.tickCount % animation.frameIntervalTicks === 0) {
-                animation.nextFrame();
-            }
+
+        if (!this.isRunningAnimationWithTarget(animation, <AnimationTarget>target)) {
+            let animationRun = createAnimationRun(this.animationRunI, animation, <AnimationTarget>target);
+            this.animationRuns.push(animationRun);
+            this.animationRunI += 1;
         }
     }
 
-    maybeStartAnimation(animation) {
-        if (animation.running) {
-            return; // can't start an animation that's already running!
+    isRunningAnimationWithTarget(animation: Animation, target: AnimationTarget): boolean {
+        let run: AnimationRun,
+            i: number,
+            ln = this.animationRuns.length;
+
+        for (i = 0; i < ln; i += 1) {
+            run = this.animationRuns[i];
+            if (typeof(run) === 'undefined') {
+                continue;
+            }
+            if (run.animation.id === animation.id && JSON.stringify(target) === JSON.stringify(run.target)) {
+                return true;
+            }
         }
-        if (animation.trigger.test()) {
-            animation.start();
+        return false;
+    }
+
+    maybeIterateRun(animationRun: AnimationRun): void {
+
+        if (typeof(animationRun) === 'undefined') {
+            return;
+        }
+
+        if (this.tickCount % animationRun.animation.intervalTicks === 0) {
+            animationRun.next();
+        }
+        if (!animationRun.state.running) {
+            this.removeAnimationRun(animationRun);
         }
     }
 
-    /*getAnimation(id) {
-        let animation = false;
-        _.each(this.animations, (animationI) => {
-            if (animationI.id === id) {
-                animation = animationI;
-                return false;
+    removeAnimationRun(animationRun: AnimationRun): void {
+        let newRuns: AnimationRun[] = [];
+        let i:number;
+        let ln = this.animationRuns.length;
+        let animationRunI:AnimationRun;
+
+        for (i = 0; i < ln; i += 1) {
+            animationRunI = this.animationRuns[i];
+            if (animationRunI !== animationRun) {
+                newRuns.push(animationRunI);
             }
-        });
-        return animation;
-    }*/
+        }
+
+        this.animationRuns = newRuns;
+
+    }
 }

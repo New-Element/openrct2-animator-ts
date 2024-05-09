@@ -9,14 +9,12 @@
     "build-release": "rollup -c rollup.config.release.js --bundleConfigAsCjs"
   },
   "devDependencies": {
+    "@rollup/plugin-node-resolve": "^15.2.3",
     "@rollup/plugin-terser": "^0.1.0",
     "@rollup/plugin-typescript": "^9.0.2",
     "lodash": "^4.17.21",
     "rollup": "^3.4.0",
     "tslib": "^2.4.1",
     "typescript": "^4.9.3"
-  },
-  "dependencies": {
-    "openrct2-flexui": "^0.1.0-prerelease.18"
   }
 }

@@ -1,4 +1,4 @@
-export interface TileCoords {
+export default interface TileCoords {
     x: number,
     y: number
 };

@@ -1,4 +1,23 @@
-export interface Trigger {
-    test: () => boolean;
+import PersistentModel from "../../data/persistentModel";
+import {AnimationTarget} from "../animationTarget";
+
+export default class Trigger implements PersistentModel {
     type: string;
+
+    constructor(obj: object) {
+        let key: string;
+        for (key in obj) {
+            this[key] = obj[key];
+        }
+    }
+
+    getDataToPersist(): object {
+        return {
+            type: this.type
+        };
+    }
+
+    test(): false|AnimationTarget {
+        return false;
+    };
 };

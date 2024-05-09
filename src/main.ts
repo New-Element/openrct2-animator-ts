@@ -1,9 +1,10 @@
 /// <reference path="./../openrct2.d.ts" />
 
 import Conductor from "../model/conductor";
+import JsonEntry from "../view/jsonEntry/jsonEntry";
 
 registerPlugin({
-    name: "animator",
+    name: "Animator",
     version: "0.0.1",
     authors: ["deanosrs"],
     type: "local",
@@ -13,6 +14,7 @@ registerPlugin({
     main: () => {
 
         new Conductor();
+        ui.registerMenuItem("Animator", () => JsonEntry.open());
 
         /*Updater.update(() => {
             Configuration.load();
