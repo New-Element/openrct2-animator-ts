@@ -45,7 +45,7 @@ export default class Animation implements PersistentModel {
         return {
             id: this.id,
             name: this.name,
-            frameIntervalTicks: this.intervalTicks,
+            intervalTicks: this.intervalTicks,
             length: this.length,
             trigger: this.trigger.getDataToPersist(),
             frames: this.getFramesDataToPersist()

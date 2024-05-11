@@ -3,29 +3,27 @@
 import Action from "../action";
 import {CarTarget} from "../../../animationTarget";
 
-type RecolourTrainTarget = 'animationTarget' | number;
-
 export default class TrainEditColourAction extends Action {
 
-    recolour: VehicleColour;
-    target: RecolourTrainTarget;
+    value: VehicleColour;
 
     getDataToPersist(): object {
         return {
-            type: this.type
+            type: this.type,
+            value: this.value
         };
     }
 
     apply(target: CarTarget): void {
-        let carId = this.target === 'animationTarget' ? target.carId : this.target,
+        let carId = typeof(target.carId) !== 'undefined' ? target.carId : 0,
             car;
         while (carId) {
             car = map.getEntity(carId);
             if (!car) {
                 break;
             }
-            car.colours = this.recolour;
-            carId = car.nextCarOnTrainId;
+            car.colours = this.value;
+            carId = car.nextCarOnTrain;
         }
     }
 

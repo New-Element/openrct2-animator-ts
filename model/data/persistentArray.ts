@@ -2,6 +2,8 @@
 
 import PersistentModel from "./persistentModel";
 
+type loadArgs = object[] | false;
+
 export default class PersistentArray {
     name: string;
     namespace: string;
@@ -35,8 +37,8 @@ export default class PersistentArray {
         return context.getParkStorage().get(this.getKey(), []);
     }
 
-    load(): void {
-        let data = this.getDataFromStorage(),
+    load(dataIn: loadArgs): void {
+        let data = dataIn !== false ? dataIn : this.getDataFromStorage(),
             length = data.length,
             i: number;
 

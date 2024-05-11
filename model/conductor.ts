@@ -1,6 +1,5 @@
 /// <reference path="./../openrct2.d.ts" />
 
-import _ from "lodash";
 import AnimationsArray from "./animation/animationsArray";
 import AnimationRun from "./animation/animationRun";
 import Animation from "./animation/animation";
@@ -12,16 +11,28 @@ export default class Conductor {
     tickCount: number = 0;
     animationRuns: AnimationRun[];
     animationRunI: number;
+    paused: boolean;
 
     constructor() {
         this.animationsArray = new AnimationsArray();
-        this.animationsArray.load();
+        this.animationsArray.load(false);
+        console.log(JSON.stringify(this.animationsArray.items));
         context.subscribe('interval.tick', this.tick.bind(this));
         this.animationRuns = [];
         this.animationRunI = 0;
+        this.paused = false;
+    }
+
+    reset() {
+        this.animationRuns = [];
+        this.animationRunI = 0;
+        this.tickCount = 0;
     }
 
     tick(): void {
+        if (this.paused) {
+            return;
+        }
         this.tickCount += 1;
         if (this.tickCount === 1000) {
             this.tickCount = 0; // just prevent dealing with stupidly high numbers here
@@ -71,6 +82,7 @@ export default class Conductor {
         if (typeof(animationRun) === 'undefined') {
             return;
         }
+
 
         if (this.tickCount % animationRun.animation.intervalTicks === 0) {
             animationRun.next();

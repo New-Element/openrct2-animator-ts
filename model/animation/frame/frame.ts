@@ -14,7 +14,7 @@ export default class Frame implements PersistentModel {
         let key: string;
         for (key in obj) {
             if (key === 'actions') {
-                this.setActions(obj);
+                this.setActions(obj[key]);
             } else {
                 this[key] = obj[key];
             }
@@ -49,10 +49,10 @@ x
         if (this.index !== false) {
             return this.index === index;
         } else {
-            if (this.minIndex !== false && this.minIndex < index) {
+            if (this.minIndex !== false && this.minIndex >= index) {
                 return false;
             }
-            if (this.maxIndex !== false && this.maxIndex > index) {
+            if (this.maxIndex !== false && this.maxIndex <= index) {
                 return false;
             }
             return true;

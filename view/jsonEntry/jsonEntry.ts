@@ -1,14 +1,10 @@
-import {window, box, label, textbox, Colour, store, twoway} from "openrct2-flexui";
+import {window, label, textbox, Colour, store, twoway} from "openrct2-flexui";
+import getConductor from "../../model/getConductor";
 
 const model =
     {
-        animationsJsonText: store<string>("a value")
+        animationsJsonText: store<string>("")
     };
-
-model.animationsJsonText.subscribe((text: string) => {
-    console.log('UPDATE!');
-    console.log(text);
-});
 
 let JsonEntry = window({
     title: "Animator",
@@ -28,7 +24,7 @@ let JsonEntry = window({
     ],
     onOpen: () => {
 
-        console.log('open window');
+        getConductor().paused = true;
 
         // pause the conductor
 
@@ -36,6 +32,14 @@ let JsonEntry = window({
         //model.animationsJsonText.set();
     },
     onClose: () => {
+
+        let conductor = getConductor();
+        let data = JSON.parse(model.animationsJsonText.get());
+        conductor.animationsArray.load(data);
+        conductor.animationsArray.save();
+        conductor.reset();
+        conductor.paused = false;
+
 
         // write the animations to park storage
 

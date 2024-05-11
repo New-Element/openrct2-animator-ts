@@ -8,4 +8,8 @@ export interface TileTarget {
     tile: TileCoords
 }
 
-export type AnimationTarget = CarTarget | TileTarget;
+export interface StaticTarget {
+    static: true
+}
+
+export type AnimationTarget = CarTarget | TileTarget | StaticTarget;
