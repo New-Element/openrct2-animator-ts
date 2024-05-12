@@ -16,7 +16,6 @@ export default class Conductor {
     constructor() {
         this.animationsArray = new AnimationsArray();
         this.animationsArray.load(false);
-        console.log(JSON.stringify(this.animationsArray.items));
         context.subscribe('interval.tick', this.tick.bind(this));
         this.animationRuns = [];
         this.animationRunI = 0;

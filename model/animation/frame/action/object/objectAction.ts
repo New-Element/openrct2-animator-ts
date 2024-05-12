@@ -23,6 +23,16 @@ export default class ObjectAction extends Action {
         }
     };
 
+    runState: {
+        elements: object[]
+    }
+
+    setRunState(): void {
+        this.runState = {
+            elements: this.findElements()
+        };
+    }
+
 
     getDataToPersist(): object {
         return {
@@ -46,27 +56,35 @@ export default class ObjectAction extends Action {
         };
     }
 
-    apply(target: StaticTarget): void {
-        let x: number, y: number;
-        this.setApplyState();
+    findElements(): object[] {
+        let x: number, y: number,
+            elements: object[],
+            i: number,
+            ln: number,
+            element,
+            found: object[] = [];
         for (x = this.tiles.from.x; x <= this.tiles.to.x; x += 1) {
             for (y = this.tiles.from.y; y <= this.tiles.to.y; y += 1) {
-                this.applyToTile({x: x, y: y});
+                elements = elements = map.getTile(x, y).elements;
+                ln = elements.length;
+                for (i = 0; i < ln; i += 1) {
+                    element = elements[i];
+                    if (element.object === this.object.index && element.type === this.object.type) {
+                        found.push({ element: element, tile: {x: x, y: y }});
+                    }
+                }
             }
         }
+
+        return found;
     }
 
-    applyToTile(tile: TileCoords): void {
-        let elements = map.getTile(tile.x, tile.y).elements,
-            i: number,
-            ln = elements.length,
-            element;
-
+    apply(target: StaticTarget): void {
+        this.setApplyState();
+        let ln = this.runState.elements.length, i: number, element;
         for (i = 0; i < ln; i += 1) {
-            element = elements[i];
-            if (element.object === this.object.index && element.type === this.object.type) {
-                this.applyToElement(element, tile);
-            }
+            element = this.runState.elements[i];
+            this.applyToElement(element.element, element.tile);
         }
     }
 

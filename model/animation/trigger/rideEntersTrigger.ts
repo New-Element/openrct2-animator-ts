@@ -4,12 +4,15 @@ import {AnimationTarget} from "../animationTarget";
 
 /// <reference path="./../../../openrct2.d.ts" />
 
+type detectArg = 'car'|'train';
+
 
 export default class RideEntersTrigger extends Trigger {
 
     type: 'rideEnters';
     rideId: number;
     tile: TileCoords;
+    detect: detectArg = 'train';
 
     test(): false|AnimationTarget {
         let found:false|AnimationTarget = false,
@@ -20,15 +23,24 @@ export default class RideEntersTrigger extends Trigger {
             x, y, c;
         for (i = 0; i < ln; i += 1) {
             v = vehicleIds[i];
-            c = (<Car>map.getEntity(v)).trackLocation;
-            x = Math.floor(c.x / 32);
-            y = Math.floor(c.y / 32);
-            if (x === this.tile.x && y === this.tile.y) {
-                found = {
-                    carId: v
-                };
-                break;
+            while (v) {
+                c = (<Car>map.getEntity(v)).trackLocation;
+                x = Math.floor(c.x / 32);
+                y = Math.floor(c.y / 32);
+                if (x === this.tile.x && y === this.tile.y) {
+                    found = {
+                        carId: v
+                    };
+                    break;
+                }
+                if (this.detect === 'car') {
+                    v = c.nextCarOnTrain;
+                }
+                if (found !== false) {
+                    break;
+                }
             }
+
         }
 
         return found;
