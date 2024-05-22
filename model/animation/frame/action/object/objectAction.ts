@@ -23,16 +23,6 @@ export default class ObjectAction extends Action {
         }
     };
 
-    runState: {
-        elements: object[]
-    }
-
-    setRunState(): void {
-        this.runState = {
-            elements: this.findElements()
-        };
-    }
-
 
     getDataToPersist(): object {
         return {
@@ -81,9 +71,10 @@ export default class ObjectAction extends Action {
 
     apply(target: StaticTarget): void {
         this.setApplyState();
-        let ln = this.runState.elements.length, i: number, element;
+        let elements = this.findElements(),
+            ln = elements.length, i: number, element;
         for (i = 0; i < ln; i += 1) {
-            element = this.runState.elements[i];
+            element = elements[i];
             this.applyToElement(element.element, element.tile);
         }
     }

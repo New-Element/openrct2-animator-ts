@@ -16,11 +16,19 @@ export default class RideEntersTrigger extends Trigger {
 
     test(): false|AnimationTarget {
         let found:false|AnimationTarget = false,
-            vehicleIds = map.getRide(this.rideId).vehicles,
-            ln = vehicleIds.length,
+            ride = map.getRide(this.rideId),
+            vehicleIds: number[],
+            ln: number,
             i,
             v,
             x, y, c;
+
+        if (!ride) {
+            return;
+        }
+
+        vehicleIds = ride.vehicles;
+        ln = vehicleIds.length;
         for (i = 0; i < ln; i += 1) {
             v = vehicleIds[i];
             while (v) {
@@ -35,6 +43,8 @@ export default class RideEntersTrigger extends Trigger {
                 }
                 if (this.detect === 'car') {
                     v = c.nextCarOnTrain;
+                } else {
+                    v = null;
                 }
                 if (found !== false) {
                     break;

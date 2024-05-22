@@ -3,8 +3,8 @@ import PersistentArray from "../data/persistentArray";
 
 export default class AnimationsArray extends PersistentArray {
     items: Animation[] = [];
-    namespace: 'animator';
-    name: 'animations';
+    namespace = 'animator';
+    name = 'animationsv2';
 
     getItem(data): Animation {
         return new Animation(data);

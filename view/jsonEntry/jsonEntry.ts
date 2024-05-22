@@ -15,7 +15,7 @@ let JsonEntry = window({
     padding: 8,
     content: [
         label({
-            text: "This is a label"
+            text: "Paste your single line of JSON animations below..."
         }),
         textbox({
             maxLength: 10000,
@@ -34,7 +34,13 @@ let JsonEntry = window({
     onClose: () => {
 
         let conductor = getConductor();
-        let data = JSON.parse(model.animationsJsonText.get());
+        let data;
+        try {
+            data = JSON.parse(model.animationsJsonText.get());
+        } catch (e) {
+            park.postMessage('Invalid JSON');
+            return;
+        }
         conductor.animationsArray.load(data);
         conductor.animationsArray.save();
         conductor.reset();

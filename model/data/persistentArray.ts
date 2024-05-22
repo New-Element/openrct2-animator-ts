@@ -41,7 +41,6 @@ export default class PersistentArray {
         let data = dataIn !== false ? dataIn : this.getDataFromStorage(),
             length = data.length,
             i: number;
-
         this.items = [];
         for (i = 0; i < length; i += 1) {
             this.items.push(this.getItem(data[i]));
