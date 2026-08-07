@@ -1,0 +1,20 @@
+---
+description: Prefer noticing and suggesting abstraction opportunities as need arises
+alwaysApply: true
+---
+
+# Abstraction
+
+Simon likes clear abstraction when it earns its keep — not frameworks for their own sake.
+
+## Agent behavior
+
+- When the same lifecycle, plumbing, or shape is about to be copied a second or third time, **notice it and suggest** a small shared layer before (or instead of) duplicating.
+- Prefer thin shared shells + focused concrete helpers (e.g. `activatePickerTool` + `pickTile` / later `pickRide`) over deep inheritance trees.
+- Suggest abstractions **as the need arises**; do not invent large systems ahead of real reuse.
+- When suggesting, say briefly: what would be shared, what stays concrete, and why now (not later).
+
+## Examples in this repo
+
+- Map pickers: shared tool lifecycle in `view/ui/pickerTool.ts`; concrete pickers like `view/ui/pickTile.ts`.
+- Event vs conditions: required fields on the event; optional filters as conditions.

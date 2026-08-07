@@ -1,43 +1,31 @@
-import Trigger from "./trigger/trigger";
 import PersistentModel from "../data/persistentModel";
-import Frame from "./frame/frame";
-import createTrigger from "./trigger/createTrigger";
-import {AnimationTarget} from "./animationTarget";
+import reportPluginError from "../reportPluginError";
+import {AnimationDesc, StepDesc} from "./jsonTypes";
+import createStep from "./step/createStep";
+import Step from "./step/step";
 
 export default class Animation implements PersistentModel {
 
     id: string;
-    name: string = 'animation';
-    intervalTicks: number = 1;
-    length: number = 0;
-    repeats: Boolean|number = false;
+    name: string = "animation";
+    steps: Step[];
 
-    trigger: Trigger;
-
-    frames: Frame[];
-
-    constructor(obj: object) {
-        let key:string;
-        // let's apply them all, except for the trigger where we need to make an instance of that.
-        for (key in obj) {
-            if (key === 'trigger') {
-                this.setTrigger(obj[key]);
-            } else if (key === 'frames') {
-                this.setFrames(obj[key]);
-            } else {
-                this[key] = obj[key];
-            }
+    constructor(obj: AnimationDesc) {
+        this.id = obj.id;
+        if (obj.name !== undefined) {
+            this.name = obj.name;
         }
-    }
+        this.steps = [];
 
-    setTrigger(data): void {
-        this.trigger = createTrigger(data);
-    }
-
-    setFrames(data): void {
-        this.frames = [];
-        for (const item of data) {
-            this.frames.push(new Frame(item));
+        if (Array.isArray(obj.steps)) {
+            for (let i = 0; i < obj.steps.length; i++) {
+                this.steps.push(createStep(obj.steps[i]));
+            }
+        } else if (obj.frames !== undefined) {
+            reportPluginError(
+                "animation",
+                `Animation "${this.id}" uses legacy frames; loaded with empty steps`
+            );
         }
     }
 
@@ -45,22 +33,24 @@ export default class Animation implements PersistentModel {
         return {
             id: this.id,
             name: this.name,
-            intervalTicks: this.intervalTicks,
-            length: this.length,
-            trigger: this.trigger.getDataToPersist(),
-            frames: this.getFramesDataToPersist()
-        }
+            steps: this.getStepsDataToPersist()
+        };
     }
 
-    getFramesDataToPersist(): object[] {
-        let data = [];
-        for (const frame of this.frames) {
-            data.push(frame.getDataToPersist());
+    getStepsDataToPersist(): object[] {
+        const data: object[] = [];
+        for (let i = 0; i < this.steps.length; i++) {
+            data.push(this.steps[i].getDataToPersist());
         }
         return data;
     }
 
-    getStartTarget(): false|AnimationTarget {
-        return this.trigger.test();
+    /** Fresh step instances for a run (avoids shared mutable step state). */
+    createRunSteps(): Step[] {
+        const steps: Step[] = [];
+        for (let i = 0; i < this.steps.length; i++) {
+            steps.push(createStep(this.steps[i].getDataToPersist() as StepDesc));
+        }
+        return steps;
     }
-};
+}

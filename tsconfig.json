@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES5",
+    "module": "ESNext",
+    "lib": ["ES2015", "ESNext"],
+    "strict": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": []
+  },
+  "include": [
+    "src/**/*",
+    "model/**/*",
+    "view/**/*",
+    "game/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "../../node_modules"
+  ]
+}

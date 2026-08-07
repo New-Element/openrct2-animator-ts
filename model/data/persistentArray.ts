@@ -1,5 +1,6 @@
 /// <reference path="./../../openrct2.d.ts" />
 
+import reportPluginError from "../reportPluginError";
 import PersistentModel from "./persistentModel";
 
 type loadArgs = object[] | false;
@@ -7,10 +8,15 @@ type loadArgs = object[] | false;
 export default class PersistentArray {
     name: string;
     namespace: string;
-    items: PersistentModel[];
+    items: PersistentModel[] = [];
 
-    getItem(data): any {
-        return data;
+    constructor(name: string, namespace: string) {
+        this.name = name;
+        this.namespace = namespace;
+    }
+
+    getItem(data: object): PersistentModel {
+        return data as PersistentModel;
     }
 
     save(): void {
@@ -22,7 +28,7 @@ export default class PersistentArray {
     }
 
     getDataToStore(): object[] {
-        let data = [];
+        let data: object[] = [];
         let length = this.items.length,
             i:number;
 
@@ -43,7 +49,15 @@ export default class PersistentArray {
             i: number;
         this.items = [];
         for (i = 0; i < length; i += 1) {
-            this.items.push(this.getItem(data[i]));
+            try {
+                this.items.push(this.getItem(data[i]));
+            } catch (e) {
+                reportPluginError(
+                    this.name,
+                    `Failed to load item at index ${i}; skipping`,
+                    e
+                );
+            }
         }
     }
 

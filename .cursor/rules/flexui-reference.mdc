@@ -1,0 +1,40 @@
+---
+description: Use local FlexUI reference when building in-game UI under view/
+globs: view/**/*
+alwaysApply: false
+---
+
+# OpenRCT2 FlexUI reference
+
+When working on UI under `view/` (even if the same task also touches other directories), use the local FlexUI reference before inventing widget APIs or layout patterns.
+
+## Local sources (gitignored)
+
+- Examples and library docs: `.ref/OpenRCT2-FlexUI/`
+  - Start with `.ref/OpenRCT2-FlexUI/examples/` (especially `AllWidgets`)
+  - README: `.ref/OpenRCT2-FlexUI/README.md`
+- Installed types for this project: `node_modules/openrct2-flexui/dist/index.d.ts`
+- Existing UI in this repo: `view/jsonEntry/jsonEntry.ts`
+
+## Rules of use
+
+- Prefer FlexUI (`window`, `label`, `textbox`, `button`, `store`, `twoway`, layout helpers, etc.) over raw OpenRCT2 `ui` widget construction unless there is a clear gap.
+- Match patterns from the FlexUI examples and this repo’s existing `view/` code.
+- If `.ref/OpenRCT2-FlexUI` is missing, say so and suggest recloning into `.ref/` (that path is gitignored on purpose).
+
+## UI copy (Title Case)
+
+- Labels, button labels, window titles, groupbox titles, list headers, and dropdown option labels use **Title Case** (capitalize every word).
+- Examples: `Delete Trigger`, `Event Type`, `Vehicle Enters`, `Add Trigger`, `Unknown (Error)`.
+- Do **not** use sentence case (`Delete trigger`, `Event type`).
+
+## Compact buttons
+
+- Text action buttons use `height: 14` by default (same as Ride Vehicle Editor’s “Edit ride…”).
+- Set an explicit `width` so the button is only as wide as its label needs (do not let it stretch full window width). Match Ride Vehicle Editor’s “Edit ride…” pattern (`height: 14` + fixed width).
+- Do **not** use taller buttons (`height: 24`) unless the control is intentionally oversized (e.g. icon toolbar buttons that need a square hit target).
+
+## Event vs conditions
+
+- Event editors only show fields the event **must** have (e.g. Car Enters → ride + tile).
+- Optional filters belong on conditions, using variables the event exposes (e.g. Train Index, Car Index).

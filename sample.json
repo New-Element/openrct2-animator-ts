@@ -1,1 +1,17 @@
-[{"name":"Unload honey pot 1","intervalTicks":50,"length":5,"repeats":false,"id":"honey1unload","trigger":{"type":"rideEnters","rideId":34,"tile":{"x":59,"y":76}},"frames":[{"index":2,"actions":[]}]},{"name":"Load honey pot 1","intervalTicks":50,"length":5,"repeats":false,"id":"honey1load","trigger":{"type":"rideEnters","rideId":34,"tile":{"x":59,"y":70}},"frames":[{"index":2,"actions":[]}]}]
+{
+  "triggers": [],
+  "animations": [
+    {
+      "id": "demo-wait-recolour",
+      "name": "Demo Wait Recolour",
+      "steps": [
+        { "type": "wait", "ticks": 40 },
+        {
+          "type": "carEditColour",
+          "value": { "body": 2, "trim": 2, "tertiary": 2 }
+        }
+      ]
+    }
+  ],
+  "variables": []
+}

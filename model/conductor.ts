@@ -1,25 +1,168 @@
 /// <reference path="./../openrct2.d.ts" />
 
 import AnimationsArray from "./animation/animationsArray";
+import TriggersArray from "./animation/triggersArray";
+import VariablesArray from "./animation/variablesArray";
 import AnimationRun from "./animation/animationRun";
 import Animation from "./animation/animation";
 import {AnimationTarget} from "./animation/animationTarget";
 import createAnimationRun from "./animation/createAnimationRun";
+import { STATIC_ANIMATIONS, STATIC_TRIGGERS } from "./staticAnimations";
+import { bindFireTrigger } from "./animation/triggerFireLookup";
+import { bindFindVariable } from "./animation/variableLookup";
+import { bindMutateVariable } from "./animation/variableMutateLookup";
+import Trigger from "./animation/trigger/trigger";
+import TriggerContext from "./animation/trigger/triggerContext";
+import {
+    collectRideIdsForCarTileEvents,
+    prepareRideCarSnapshots
+} from "./animation/trigger/rideCarSnapshot";
+import {
+    loadRuntimeStateFromParkStorage,
+    saveRuntimeStateToParkStorage
+} from "./animation/runtimeState";
+import {
+    isParkEditedWithNewerPlugin,
+    readLastPluginVersion,
+    saveLastPluginVersionStamp
+} from "./pluginVersionStamp";
+import reportPluginError from "./reportPluginError";
+import {reportTriggerFired} from "./triggerFireFeedback";
+import {openVersionMismatchWarning} from "../view/info/versionMismatchWarning";
+
+// *** DEVELOPMENT MODE FLAG ***
+// Set to true to use static triggers/animations from staticAnimations.ts
+// Set to false to load from park storage (normal behavior)
+const USE_STATIC_ANIMATIONS = false;
 
 export default class Conductor {
+    triggersArray: TriggersArray;
     animationsArray: AnimationsArray;
+    variablesArray: VariablesArray;
     tickCount: number = 0;
     animationRuns: AnimationRun[];
     animationRunI: number;
     paused: boolean;
 
     constructor() {
+        this.triggersArray = new TriggersArray();
         this.animationsArray = new AnimationsArray();
-        this.animationsArray.load(false);
-        context.subscribe('interval.tick', this.tick.bind(this));
+        this.variablesArray = new VariablesArray();
         this.animationRuns = [];
         this.animationRunI = 0;
         this.paused = false;
+        bindFireTrigger((triggerId, context) => this.fireTrigger(triggerId, context));
+        bindFindVariable((id) => this.variablesArray.findById(id));
+        bindMutateVariable((variableId, mode, value) => this.mutateVariable(variableId, mode, value));
+
+        if (USE_STATIC_ANIMATIONS) {
+            console.log('[Animator] Loading STATIC triggers and animations for development');
+            this.triggersArray.load(STATIC_TRIGGERS);
+            this.animationsArray.load(STATIC_ANIMATIONS);
+            this.variablesArray.load([]);
+            console.log(`[Animator] Loaded ${this.triggersArray.items.length} triggers, ${this.animationsArray.items.length} animations`);
+        } else {
+            console.log('[Animator] Loading triggers, animations, and variables from park storage');
+            this.triggersArray.load(false);
+            this.animationsArray.load(false);
+            this.variablesArray.load(false);
+        }
+
+        // Restore runs / side-state before any tick can fire (avoids singleImmediate duplicates).
+        loadRuntimeStateFromParkStorage(this);
+
+        if (typeof ui !== "undefined" && isParkEditedWithNewerPlugin()) {
+            const parkVersion = readLastPluginVersion();
+            if (parkVersion !== undefined) {
+                openVersionMismatchWarning(parkVersion);
+            }
+        }
+
+        context.subscribe("map.save", () => {
+            saveRuntimeStateToParkStorage(this);
+            saveLastPluginVersionStamp();
+        });
+        context.subscribe('interval.tick', this.tick.bind(this));
+    }
+
+    /**
+     * Set a park variable's current value (coerced by type).
+     * Returns true if the stored value changed. Caller is responsible for save().
+     */
+    setVariableValue(id: string, value: number | string): boolean {
+        const variable = this.variablesArray.findById(id);
+        if (!variable) {
+            reportPluginError("variable", `Variable "${id}" not found`);
+            return false;
+        }
+        return variable.setValue(value);
+    }
+
+    /**
+     * Mutate a variable from an animation step. Saves when the value changes.
+     */
+    mutateVariable(
+        id: string,
+        mode: "set" | "increment" | "decrement",
+        value: number | string
+    ): boolean {
+        const variable = this.variablesArray.findById(id);
+        if (!variable) {
+            reportPluginError("variable", `Variable "${id}" not found`);
+            return false;
+        }
+
+        let next: number | string;
+        if (mode === "set") {
+            next = value;
+        } else {
+            if (variable.valueType === "string") {
+                reportPluginError(
+                    "variable",
+                    `Cannot ${mode} string variable "${id}"`
+                );
+                return false;
+            }
+            const current = typeof variable.value === "number" ? variable.value : Number(variable.value);
+            const amount = typeof value === "number" ? value : Number(value);
+            if (isNaN(current) || isNaN(amount)) {
+                reportPluginError("variable", `Invalid numeric ${mode} for "${id}"`);
+                return false;
+            }
+            next = mode === "increment" ? current + amount : current - amount;
+        }
+
+        const changed = variable.setValue(next);
+        if (changed) {
+            this.variablesArray.save();
+        }
+        return changed;
+    }
+
+    /**
+     * Reset one variable's current value to its default. Returns true if changed.
+     */
+    resetVariableToDefault(id: string): boolean {
+        const variable = this.variablesArray.findById(id);
+        if (!variable) {
+            reportPluginError("variable", `Variable "${id}" not found`);
+            return false;
+        }
+        return variable.resetToDefault();
+    }
+
+    /**
+     * Reset every variable's current value to its default.
+     * Returns how many variables changed. Caller is responsible for save().
+     */
+    resetAllVariables(): number {
+        let changed = 0;
+        for (let i = 0; i < this.variablesArray.items.length; i++) {
+            if (this.variablesArray.items[i].resetToDefault()) {
+                changed += 1;
+            }
+        }
+        return changed;
     }
 
     reset() {
@@ -29,31 +172,90 @@ export default class Conductor {
     }
 
     tick(): void {
+        this.tickCount += 1;
+        if (this.tickCount === 1000) {
+            this.tickCount = 0;
+        }
+
+        // One vehicle walk per watched ride; carEnters events read the snapshot.
+        const rideIds = collectRideIdsForCarTileEvents(this.triggersArray.items);
+        prepareRideCarSnapshots(rideIds);
+
+        // Always poll events so the edit-trigger UI can show fire feedback while paused.
+        for (let i = 0; i < this.triggersArray.items.length; i++) {
+            this.maybeFireEventedTrigger(this.triggersArray.items[i]);
+        }
+
         if (this.paused) {
             return;
         }
-        this.tickCount += 1;
-        if (this.tickCount === 1000) {
-            this.tickCount = 0; // just prevent dealing with stupidly high numbers here
-        }
 
-        for (const animation in this.animationsArray.items) {
-            this.maybeStartRun(this.animationsArray.items[animation]);
-        }
-
-        for (const run in this.animationRuns) {
-            this.maybeIterateRun(this.animationRuns[run]);
+        for (let i = 0; i < this.animationRuns.length; i++) {
+            this.maybeIterateRun(this.animationRuns[i]);
         }
     }
 
-    maybeStartRun(animation: Animation): void {
-        let target = animation.getStartTarget();
-        if (!target) {
-            return;
+    maybeFireEventedTrigger(trigger: Trigger): void {
+        try {
+            const contexts = trigger.tryFireFromEvent();
+            for (let i = 0; i < contexts.length; i++) {
+                reportTriggerFired(trigger.id, contexts[i]);
+                if (!this.paused) {
+                    this.startTriggerAnimations(trigger, contexts[i]);
+                }
+            }
+        } catch (e) {
+            reportPluginError("tick", `Trigger "${trigger.id}" failed while polling event`, e);
         }
+    }
 
-        if (!this.isRunningAnimationWithTarget(animation, <AnimationTarget>target)) {
-            let animationRun = createAnimationRun(this.animationRunI, animation, <AnimationTarget>target);
+    fireTrigger(triggerId: string, context: TriggerContext): void {
+        try {
+            const trigger = this.triggersArray.findById(triggerId);
+            if (!trigger) {
+                reportPluginError("fireTrigger", `Trigger "${triggerId}" not found`);
+                return;
+            }
+            const passed = trigger.tryFireWithContext(context);
+            if (!passed) {
+                console.log(`[FireTrigger] Trigger "${triggerId}" conditions failed`);
+                return;
+            }
+            reportTriggerFired(trigger.id, passed);
+            if (!this.paused) {
+                this.startTriggerAnimations(trigger, passed);
+            }
+        } catch (e) {
+            reportPluginError("fireTrigger", `Trigger "${triggerId}" failed`, e);
+        }
+    }
+
+    startTriggerAnimations(trigger: Trigger, context: TriggerContext): void {
+        for (let i = 0; i < trigger.animationIds.length; i++) {
+            const animationId = trigger.animationIds[i];
+            try {
+                const animation = this.animationsArray.findById(animationId);
+                if (!animation) {
+                    reportPluginError(
+                        "trigger",
+                        `Animation "${animationId}" not found for trigger "${trigger.id}"`
+                    );
+                    continue;
+                }
+                this.maybeStartRun(animation, context);
+            } catch (e) {
+                reportPluginError(
+                    "trigger",
+                    `Failed starting animation "${animationId}" for trigger "${trigger.id}"`,
+                    e
+                );
+            }
+        }
+    }
+
+    maybeStartRun(animation: Animation, context: TriggerContext): void {
+        if (!this.isRunningAnimationWithTarget(animation, context.target)) {
+            let animationRun = createAnimationRun(this.animationRunI, animation, context);
             this.animationRuns.push(animationRun);
             this.animationRunI += 1;
         }
@@ -77,16 +279,21 @@ export default class Conductor {
     }
 
     maybeIterateRun(animationRun: AnimationRun): void {
-
         if (typeof(animationRun) === 'undefined') {
             return;
         }
 
-
-        if (this.tickCount % animationRun.animation.intervalTicks === 0) {
-            animationRun.next();
-        }
-        if (!animationRun.state.running) {
+        try {
+            animationRun.tick();
+            if (!animationRun.state.running) {
+                this.removeAnimationRun(animationRun);
+            }
+        } catch (e) {
+            reportPluginError(
+                "tick",
+                `Animation run "${animationRun.animation.id}" failed; removing run`,
+                e
+            );
             this.removeAnimationRun(animationRun);
         }
     }
@@ -105,6 +312,5 @@ export default class Conductor {
         }
 
         this.animationRuns = newRuns;
-
     }
 }

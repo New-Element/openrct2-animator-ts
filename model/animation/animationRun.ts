@@ -1,38 +1,82 @@
 import Animation from "./animation";
 import {AnimationTarget} from "./animationTarget";
 import AnimationState from "./animationState";
-import Frame from "./frame/frame";
+import {setCurrentTriggerContext} from "./currentTriggerContext";
+import Step from "./step/step";
+import TriggerContext from "./trigger/triggerContext";
+
+const MAX_STEPS_PER_TICK = 64;
 
 export default class AnimationRun {
     animation: Animation;
     target: AnimationTarget;
+    triggerContext: TriggerContext;
     state: AnimationState;
     i: number;
+    /** Per-run step instances (cloned from the animation). */
+    steps: Step[];
 
-    constructor(i: number, animation: Animation, target: AnimationTarget) {
+    constructor(i: number, animation: Animation, triggerContext: TriggerContext) {
         this.i = i;
         this.animation = animation;
-        this.target = target;
-        // initialize the state to a default
+        this.triggerContext = triggerContext;
+        this.target = triggerContext.target;
+        this.steps = animation.createRunSteps();
         this.state = {
-            index: -1,
+            stepIndex: 0,
+            stepElapsedTicks: 0,
+            stepStarted: false,
             running: true,
             paused: false,
             hasRun: false
         };
     }
 
-    next(): void {
-        this.state.index += 1;
-        let i:number, ln = this.animation.frames.length, frame: Frame;
-        for (i = 0; i < ln; i += 1) {
-            frame = this.animation.frames[i];
-            if (frame.shouldPlayOnIndex(this.state.index)) {
-                frame.play(this.target);
-            }
+    /**
+     * Advance this run by one tick. Instant steps may chain in the same tick.
+     */
+    tick(): void {
+        if (!this.state.running || this.state.paused) {
+            return;
         }
-        if (this.state.index >= this.animation.length && this.animation.length >= 0) {
+
+        if (this.steps.length === 0) {
             this.state.running = false;
+            return;
+        }
+
+        setCurrentTriggerContext(this.triggerContext);
+        try {
+            let guard = 0;
+            while (this.state.running && guard < MAX_STEPS_PER_TICK) {
+                guard += 1;
+
+                if (this.state.stepIndex >= this.steps.length) {
+                    this.state.running = false;
+                    return;
+                }
+
+                const step = this.steps[this.state.stepIndex];
+
+                if (!this.state.stepStarted) {
+                    this.state.stepElapsedTicks = 0;
+                    step.onStart(this);
+                    this.state.stepStarted = true;
+                    this.state.hasRun = true;
+                }
+
+                step.onTick(this);
+
+                if (!step.isComplete(this)) {
+                    return;
+                }
+
+                this.state.stepIndex += 1;
+                this.state.stepStarted = false;
+                this.state.stepElapsedTicks = 0;
+            }
+        } finally {
+            setCurrentTriggerContext(null);
         }
     }
 }

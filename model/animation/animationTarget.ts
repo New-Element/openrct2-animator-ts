@@ -12,4 +12,8 @@ export interface StaticTarget {
     static: true
 }
 
-export type AnimationTarget = CarTarget | TileTarget | StaticTarget;
+export interface StaffTarget {
+    staffId: number;
+}
+
+export type AnimationTarget = CarTarget | TileTarget | StaticTarget | StaffTarget;
