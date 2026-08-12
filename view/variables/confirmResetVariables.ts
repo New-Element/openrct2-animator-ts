@@ -1,11 +1,12 @@
-import {button, Colour, horizontal, label, store, window} from "openrct2-flexui";
+import {button, horizontal, label, store, window} from "openrct2-flexui";
+import {WINDOW_COLOURS} from "../ui/windowColours";
 
 const messageText = store<string>("");
 let onConfirmed: (() => void) | null = null;
 
 const confirmWindow = window({
     title: "Reset Variables",
-    colours: [Colour.DarkOliveGreen, Colour.DarkOliveGreen],
+    colours: WINDOW_COLOURS,
     width: 300,
     height: 120,
     position: "center",

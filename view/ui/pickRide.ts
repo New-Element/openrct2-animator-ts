@@ -1,5 +1,6 @@
 /// <reference path="./../../openrct2.d.ts" />
 
+import MapTile from "../../game/mapTile";
 import {
     activatePickerTool,
     clearTileSelection,
@@ -32,7 +33,10 @@ function rideIdFromTrackElement(event: PickerToolEvent): number | null {
     if (!tile) {
         return null;
     }
-    const mapTile = map.getTile(tile.x, tile.y);
+    const mapTile = MapTile.at(tile);
+    if (!mapTile) {
+        return null;
+    }
 
     if (event.tileElementIndex !== undefined) {
         const element = mapTile.getElement(event.tileElementIndex);
@@ -44,13 +48,10 @@ function rideIdFromTrackElement(event: PickerToolEvent): number | null {
         }
     }
 
-    for (let i = 0; i < mapTile.numElements; i++) {
-        const element = mapTile.getElement(i);
-        if (element && element.type === "track") {
-            const rideId = (element as TrackElement).ride;
-            if (isSelectableRide(rideId)) {
-                return rideId;
-            }
+    const tracks = mapTile.tracks();
+    for (let i = 0; i < tracks.length; i++) {
+        if (isSelectableRide(tracks[i].ride)) {
+            return tracks[i].ride;
         }
     }
 

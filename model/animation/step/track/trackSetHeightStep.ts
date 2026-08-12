@@ -1,5 +1,6 @@
 /// <reference path="./../../../../openrct2.d.ts" />
 
+import MapTile from "../../../../game/mapTile";
 import TileCoords from "../../../../game/tileCoords";
 import {TrackSetHeightStepDesc} from "../../jsonTypes";
 import InstantStep from "../instantStep";
@@ -20,25 +21,15 @@ export default class TrackSetHeightStep extends InstantStep {
     }
 
     protected apply(_run: StepRunContext): void {
-        const tile = map.getTile(this.tile.x, this.tile.y);
-        if (!tile) {
+        const mapTile = MapTile.at(this.tile);
+        if (!mapTile) {
             return;
         }
-
-        for (let i = 0; i < tile.numElements; i++) {
-            const element = tile.getElement(i);
-            if (element.type !== "track") {
-                continue;
-            }
-            const track = element as TrackElement;
-            if (track.ride !== this.rideId || track.trackType !== this.trackType) {
-                continue;
-            }
-            const heightDelta = this.baseHeight - track.baseHeight;
-            track.baseHeight = this.baseHeight;
-            track.clearanceHeight += heightDelta;
+        const track = mapTile.findTrack(this.rideId, this.trackType);
+        if (!track) {
             return;
         }
+        mapTile.setTrackBaseHeight(track, this.baseHeight);
     }
 
     getDataToPersist(): object {

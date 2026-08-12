@@ -4,6 +4,7 @@ import AnimationState from "./animationState";
 import {setCurrentTriggerContext} from "./currentTriggerContext";
 import Step from "./step/step";
 import TriggerContext from "./trigger/triggerContext";
+import {getTriggerContextInvalidReason} from "./triggerContextValidity";
 
 const MAX_STEPS_PER_TICK = 64;
 
@@ -41,6 +42,22 @@ export default class AnimationRun {
         }
 
         if (this.steps.length === 0) {
+            this.state.running = false;
+            return;
+        }
+
+        const invalid = getTriggerContextInvalidReason(this.triggerContext);
+        if (invalid) {
+            const ctx = this.triggerContext;
+            const target = ctx.target;
+            const carId = "carId" in target ? target.carId : "n/a";
+            console.log(
+                `[Animator] Aborting run "${this.animation.id}" (${invalid}) ` +
+                    `stepIndex=${this.state.stepIndex} stepStarted=${this.state.stepStarted} ` +
+                    `carId=${carId} rideId=${ctx.rideId} trainIndex=${ctx.trainIndex} ` +
+                    `tile=${ctx.tile ? `(${ctx.tile.x},${ctx.tile.y})` : "none"} ` +
+                    `allowOffTile=${!!ctx.allowOffTile}`
+            );
             this.state.running = false;
             return;
         }

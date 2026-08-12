@@ -3,7 +3,11 @@
 import {resolveCarId} from "../../entityRematch";
 import {VehicleTargetDesc} from "../../jsonTypes";
 import StepRunContext from "../stepRunContext";
-import {resolveTriggerCar} from "./resolveCars";
+import {
+    resolveTriggerCar,
+    resolveTriggerTrainHead,
+    walkTrainFromHead
+} from "./resolveCars";
 
 export function usesTriggerTarget(target: VehicleTargetDesc): boolean {
     return target.useTriggerTarget !== false;
@@ -11,6 +15,7 @@ export function usesTriggerTarget(target: VehicleTargetDesc): boolean {
 
 /**
  * Resolve the head car for a step's vehicle target (trigger car or explicit ride/train/car).
+ * For trigger targeting this is the firer car (car steps), not the train head.
  */
 export function resolveTargetHeadCar(
     run: StepRunContext,
@@ -42,36 +47,33 @@ export function resolveTargetHeadCar(
 }
 
 /**
- * Resolve all cars on the targeted train (head + nextCarOnTrain chain).
+ * Resolve all cars on the targeted train (true train head + nextCarOnTrain chain).
  */
 export function resolveTargetTrainCars(
     run: StepRunContext,
     target: VehicleTargetDesc
 ): Car[] {
-    const cars: Car[] = [];
-    // Train targeting always starts at the train head (car index 0).
-    const headTarget: VehicleTargetDesc = usesTriggerTarget(target)
-        ? target
-        : {
-            useTriggerTarget: false,
-            rideId: target.rideId,
-            trainIndex: target.trainIndex,
-            carIndex: 0
-        };
-
-    let car = resolveTargetHeadCar(run, headTarget);
-    while (car) {
-        cars.push(car);
-        if (car.nextCarOnTrain === null) {
-            break;
-        }
-        const next = map.getEntity(car.nextCarOnTrain);
-        if (!next || next.type !== "car") {
-            break;
-        }
-        car = next as Car;
+    if (usesTriggerTarget(target)) {
+        return walkTrainFromHead(resolveTriggerTrainHead(run));
     }
-    return cars;
+
+    if (typeof target.rideId !== "number" || typeof target.trainIndex !== "number") {
+        return [];
+    }
+
+    const headId = resolveCarId({
+        rideId: target.rideId,
+        trainIndex: target.trainIndex,
+        carIndex: 0
+    });
+    if (headId === null) {
+        return [];
+    }
+    const entity = map.getEntity(headId);
+    if (!entity || entity.type !== "car") {
+        return [];
+    }
+    return walkTrainFromHead(entity as Car);
 }
 
 /** Fields to persist for vehicle targeting (omit ids when using trigger). */

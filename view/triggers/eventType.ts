@@ -1,29 +1,16 @@
-import {TriggerEventDesc} from "../../model/animation/jsonTypes";
 import Trigger from "../../model/animation/trigger/trigger";
 import {formatErrorText} from "../ui/errorText";
+import {TriggerEventKind} from "./events/eventUiTypes";
 
-export type TriggerEventKind =
-    | "manual"
-    | "carEnters"
-    | "singleImmediate"
-    | "staff"
-    | "variableChange"
-    | "unknown";
+export type {TriggerEventKind} from "./events/eventUiTypes";
 
 export const UNKNOWN_EVENT_LABEL = "Unknown (Error)";
-
-export const EDITOR_EVENT_LABELS = [
-    "Manual",
-    "Car Enters",
-    "Immediate",
-    "Staff",
-    "On Variable Change"
-];
 
 export const FILTER_EVENT_LABELS = [
     "All",
     "Manual",
     "Car Enters",
+    "Train Enters",
     "Immediate",
     "Staff",
     "On Variable Change",
@@ -36,8 +23,14 @@ export function eventKindFromTrigger(trigger: Trigger): TriggerEventKind {
     }
     switch (trigger.event.type) {
         case "carEnters":
-        case "vehicleEnters": // legacy type string if somehow still present at runtime
             return "carEnters";
+        case "trainEnters":
+            return "trainEnters";
+        case "vehicleEnters": {
+            // Legacy soft-load path if type string is still present at runtime.
+            const detect = (trigger.event as { detect?: string }).detect;
+            return detect === "train" ? "trainEnters" : "carEnters";
+        }
         case "singleImmediate":
             return "singleImmediate";
         case "staff":
@@ -55,6 +48,8 @@ export function eventKindLabel(kind: TriggerEventKind): string {
             return "Manual";
         case "carEnters":
             return "Car Enters";
+        case "trainEnters":
+            return "Train Enters";
         case "singleImmediate":
             return "Immediate";
         case "staff":
@@ -66,67 +61,26 @@ export function eventKindLabel(kind: TriggerEventKind): string {
     }
 }
 
-export function editorIndexFromKind(kind: TriggerEventKind): number {
-    switch (kind) {
-        case "manual":
-            return 0;
-        case "carEnters":
-            return 1;
-        case "singleImmediate":
-            return 2;
-        case "staff":
-            return 3;
-        case "variableChange":
-            return 4;
-        case "unknown":
-            // Not in editor dropdown; caller should not persist until user picks a real type.
-            return 0;
-    }
-}
-
-export function kindFromEditorIndex(index: number): TriggerEventKind {
-    switch (index) {
-        case 1:
-            return "carEnters";
-        case 2:
-            return "singleImmediate";
-        case 3:
-            return "staff";
-        case 4:
-            return "variableChange";
-        default:
-            return "manual";
-    }
-}
-
 /** Filter dropdown: 0 = All, then editor kinds, then Unknown (Error). */
 export function kindFromFilterIndex(index: number): TriggerEventKind | "all" {
     if (index <= 0) {
         return "all";
     }
-    if (index === 6) {
+    if (index === 7) {
         return "unknown";
     }
-    return kindFromEditorIndex(index - 1);
-}
-
-export function createEventStub(kind: TriggerEventKind): TriggerEventDesc | null {
-    switch (kind) {
-        case "manual":
-            return null;
-        case "carEnters":
-            return {
-                type: "carEnters",
-                rideId: 0,
-                tile: { x: 0, y: 0 }
-            };
-        case "singleImmediate":
-            return { type: "singleImmediate" };
-        case "staff":
-            return { type: "staff", staffId: 0 };
-        case "variableChange":
-            return { type: "variableChange", variableId: "" };
-        case "unknown":
-            return null;
+    switch (index - 1) {
+        case 1:
+            return "carEnters";
+        case 2:
+            return "trainEnters";
+        case 3:
+            return "singleImmediate";
+        case 4:
+            return "staff";
+        case 5:
+            return "variableChange";
+        default:
+            return "manual";
     }
 }

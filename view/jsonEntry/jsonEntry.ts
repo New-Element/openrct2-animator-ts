@@ -9,7 +9,6 @@ import {
     listview,
     horizontal,
     groupbox,
-    Colour,
     twoway,
     vertical
 } from "openrct2-flexui";
@@ -18,11 +17,18 @@ import {animationsListModel} from "../animations/animationsListModel";
 import {createPluginInfoContent} from "../info/pluginInfoContent";
 import {FILTER_EVENT_LABELS} from "../triggers/eventType";
 import {triggersListModel} from "../triggers/triggersListModel";
+import {TAB_WINDOW_COLOURS} from "../ui/windowColours";
 import {variablesListModel} from "../variables/variablesListModel";
+
+const infoTabIcon: ImageAnimation = {
+    frameBase: 5367,
+    frameCount: 8,
+    frameDuration: 4,
+};
 
 let JsonEntry = tabwindow({
     title: "Animator",
-    colours: [Colour.DarkOliveGreen, Colour.DarkOliveGreen, Colour.DarkOliveGreen],
+    colours: TAB_WINDOW_COLOURS,
     width: {value: 420, min: 280, max: 700},
     height: {value: 360, min: 260, max: 700},
     position: "center",
@@ -171,7 +177,7 @@ let JsonEntry = tabwindow({
             ]
         }),
         tab({
-            image: "question",
+            image: infoTabIcon,
             padding: 8,
             content: [
                 vertical({

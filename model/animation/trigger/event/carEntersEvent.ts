@@ -82,7 +82,8 @@ export default class CarEntersEvent extends TriggerEvent {
                     target: { carId: pos.carId },
                     rideId: this.rideId,
                     trainIndex: pos.trainIndex,
-                    carIndex: pos.carIndex
+                    carIndex: pos.carIndex,
+                    tile: { x: this.tile.x, y: this.tile.y }
                 });
             }
         }

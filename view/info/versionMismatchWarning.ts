@@ -1,6 +1,5 @@
 import {
     button,
-    Colour,
     compute,
     label,
     store,
@@ -10,12 +9,13 @@ import {
 import { PLUGIN_VERSION } from "../../model/pluginInfo";
 import { createPluginInfoContent } from "./pluginInfoContent";
 import { formatErrorText } from "../ui/errorText";
+import { WINDOW_COLOURS } from "../ui/windowColours";
 
 const parkVersion = store("");
 
 const warningWindow = window({
     title: "Animator Version Warning",
-    colours: [Colour.DarkOliveGreen, Colour.DarkOliveGreen],
+    colours: WINDOW_COLOURS,
     width: 400,
     height: 420,
     position: "center",

@@ -2,7 +2,6 @@
 
 import {
     button,
-    Colour,
     dropdown,
     groupbox,
     horizontal,
@@ -13,6 +12,7 @@ import {
 } from "openrct2-flexui";
 import {VariableValueType} from "../../model/animation/jsonTypes";
 import getConductor from "../../model/getConductor";
+import {WINDOW_COLOURS} from "../ui/windowColours";
 
 const TYPE_LABELS = ["Int", "Float", "String"];
 
@@ -144,7 +144,7 @@ function deleteEditingVariable(): void {
 
 const editorWindow = window({
     title: "Edit Variable",
-    colours: [Colour.DarkOliveGreen, Colour.DarkOliveGreen],
+    colours: WINDOW_COLOURS,
     width: { value: 300, min: 260, max: 420 },
     height: { value: 240, min: 220, max: 360 },
     position: "center",

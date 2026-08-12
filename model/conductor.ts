@@ -5,7 +5,6 @@ import TriggersArray from "./animation/triggersArray";
 import VariablesArray from "./animation/variablesArray";
 import AnimationRun from "./animation/animationRun";
 import Animation from "./animation/animation";
-import {AnimationTarget} from "./animation/animationTarget";
 import createAnimationRun from "./animation/createAnimationRun";
 import { STATIC_ANIMATIONS, STATIC_TRIGGERS } from "./staticAnimations";
 import { bindFireTrigger } from "./animation/triggerFireLookup";
@@ -15,7 +14,9 @@ import Trigger from "./animation/trigger/trigger";
 import TriggerContext from "./animation/trigger/triggerContext";
 import {
     collectRideIdsForCarTileEvents,
-    prepareRideCarSnapshots
+    collectRideIdsForTrainTileEvents,
+    prepareRideCarSnapshots,
+    prepareRideTrainHeadSnapshots
 } from "./animation/trigger/rideCarSnapshot";
 import {
     loadRuntimeStateFromParkStorage,
@@ -64,6 +65,7 @@ export default class Conductor {
         } else {
             console.log('[Animator] Loading triggers, animations, and variables from park storage');
             this.triggersArray.load(false);
+            // AnimationsArray.load normalizes/migrates lift-drop heights and may save.
             this.animationsArray.load(false);
             this.variablesArray.load(false);
         }
@@ -177,9 +179,13 @@ export default class Conductor {
             this.tickCount = 0;
         }
 
-        // One vehicle walk per watched ride; carEnters events read the snapshot.
-        const rideIds = collectRideIdsForCarTileEvents(this.triggersArray.items);
-        prepareRideCarSnapshots(rideIds);
+        // One walk per watched ride; tile events read the snapshot.
+        // carEnters walks every car; trainEnters walks train heads only (unless
+        // the same ride already has a full car walk this tick).
+        const carRideIds = collectRideIdsForCarTileEvents(this.triggersArray.items);
+        const trainRideIds = collectRideIdsForTrainTileEvents(this.triggersArray.items);
+        prepareRideCarSnapshots(carRideIds);
+        prepareRideTrainHeadSnapshots(trainRideIds, carRideIds);
 
         // Always poll events so the edit-trigger UI can show fire feedback while paused.
         for (let i = 0; i < this.triggersArray.items.length; i++) {
@@ -218,7 +224,6 @@ export default class Conductor {
             }
             const passed = trigger.tryFireWithContext(context);
             if (!passed) {
-                console.log(`[FireTrigger] Trigger "${triggerId}" conditions failed`);
                 return;
             }
             reportTriggerFired(trigger.id, passed);
@@ -254,25 +259,48 @@ export default class Conductor {
     }
 
     maybeStartRun(animation: Animation, context: TriggerContext): void {
-        if (!this.isRunningAnimationWithTarget(animation, context.target)) {
-            let animationRun = createAnimationRun(this.animationRunI, animation, context);
+        if (!this.isRunningAnimationWithContext(animation, context)) {
+            const animationRun = createAnimationRun(this.animationRunI, animation, context);
             this.animationRuns.push(animationRun);
             this.animationRunI += 1;
         }
     }
 
-    isRunningAnimationWithTarget(animation: Animation, target: AnimationTarget): boolean {
-        let run: AnimationRun,
-            i: number,
-            ln = this.animationRuns.length;
-
-        for (i = 0; i < ln; i += 1) {
-            run = this.animationRuns[i];
-            if (typeof(run) === 'undefined') {
+    /**
+     * True if this animation is already running for the same target, or (for car
+     * triggers) the same ride/train — and same trigger tile when both have one.
+     * Prevents two cars of one train starting duplicate lift/coords runs.
+     */
+    isRunningAnimationWithContext(animation: Animation, context: TriggerContext): boolean {
+        const target = context.target;
+        for (let i = 0; i < this.animationRuns.length; i++) {
+            const run = this.animationRuns[i];
+            if (typeof run === "undefined") {
                 continue;
             }
-            if (run.animation.id === animation.id && JSON.stringify(target) === JSON.stringify(run.target)) {
+            if (run.animation.id !== animation.id) {
+                continue;
+            }
+            if (JSON.stringify(target) === JSON.stringify(run.target)) {
                 return true;
+            }
+            if (
+                "carId" in target &&
+                "carId" in run.target &&
+                typeof context.rideId === "number" &&
+                typeof context.trainIndex === "number" &&
+                context.rideId === run.triggerContext.rideId &&
+                context.trainIndex === run.triggerContext.trainIndex
+            ) {
+                const aTile = context.tile;
+                const bTile = run.triggerContext.tile;
+                if (aTile && bTile) {
+                    if (aTile.x === bTile.x && aTile.y === bTile.y) {
+                        return true;
+                    }
+                } else if (!aTile && !bTile) {
+                    return true;
+                }
             }
         }
         return false;

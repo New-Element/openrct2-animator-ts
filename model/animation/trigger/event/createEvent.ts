@@ -2,13 +2,16 @@ import {
     CarEntersEventDesc,
     SingleImmediateEventDesc,
     StaffEventDesc,
+    TrainEntersEventDesc,
     TriggerEventDesc,
-    VariableChangeEventDesc
+    VariableChangeEventDesc,
+    VehicleEntersEventDesc
 } from "../../jsonTypes";
 import reportPluginError from "../../../reportPluginError";
 import CarEntersEvent from "./carEntersEvent";
 import SingleImmediateEvent from "./singleImmediateEvent";
 import StaffEvent from "./staffEvent";
+import TrainEntersEvent from "./trainEntersEvent";
 import TriggerEvent from "./triggerEvent";
 import UnknownEvent from "./unknownEvent";
 import VariableChangeEvent from "./variableChangeEvent";
@@ -16,12 +19,33 @@ import VariableChangeEvent from "./variableChangeEvent";
 export default function createEvent(data: TriggerEventDesc): TriggerEvent {
     switch (data.type) {
         case "carEnters":
-        case "vehicleEnters": // legacy soft-load
             return new CarEntersEvent({
                 type: "carEnters",
                 rideId: (data as CarEntersEventDesc).rideId,
                 tile: (data as CarEntersEventDesc).tile
             });
+        case "trainEnters":
+            return new TrainEntersEvent({
+                type: "trainEnters",
+                rideId: (data as TrainEntersEventDesc).rideId,
+                tile: (data as TrainEntersEventDesc).tile
+            });
+        case "vehicleEnters": {
+            // Legacy soft-load: detect "train" → trainEnters; otherwise carEnters.
+            const legacy = data as VehicleEntersEventDesc;
+            if (legacy.detect === "train") {
+                return new TrainEntersEvent({
+                    type: "trainEnters",
+                    rideId: legacy.rideId,
+                    tile: legacy.tile
+                });
+            }
+            return new CarEntersEvent({
+                type: "carEnters",
+                rideId: legacy.rideId,
+                tile: legacy.tile
+            });
+        }
         case "singleImmediate":
             return new SingleImmediateEvent(data as SingleImmediateEventDesc);
         case "staff":

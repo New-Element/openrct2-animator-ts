@@ -1,8 +1,10 @@
 import {
     CarCoordsOverTimeStepDesc,
     CarEditColourStepDesc,
+    LiftDropTrackStepDesc,
     StepDesc,
     StepDescBase,
+    SwitchTiTrackOrderStepDesc,
     TrackSetHeightStepDesc,
     TrainCoordsOverTimeStepDesc,
     TrainEditColourStepDesc,
@@ -16,6 +18,8 @@ import CarEditColourStep from "./car/carEditColourStep";
 import TrainCoordsOverTimeStep from "./car/trainCoordsOverTimeStep";
 import TrainEditColourStep from "./car/trainEditColourStep";
 import Step from "./step";
+import LiftDropTrackStep from "./track/liftDropTrackStep";
+import SwitchTiTrackOrderStep from "./track/switchTiTrackOrderStep";
 import TrackSetHeightStep from "./track/trackSetHeightStep";
 import UnknownStep from "./unknownStep";
 import VariableDecrementStep from "./variable/variableDecrementStep";
@@ -39,6 +43,10 @@ export default function createStep(data: StepDesc | StepDescBase): Step {
             return new VariableDecrementStep(data as VariableDecrementStepDesc);
         case "trackSetHeight":
             return new TrackSetHeightStep(data as TrackSetHeightStepDesc);
+        case "switchTiTrackOrder":
+            return new SwitchTiTrackOrderStep(data as SwitchTiTrackOrderStepDesc);
+        case "liftDropTrack":
+            return new LiftDropTrackStep(data as LiftDropTrackStepDesc);
         case "carCoordsOverTime":
             return new CarCoordsOverTimeStep(data as CarCoordsOverTimeStepDesc);
         case "trainCoordsOverTime":

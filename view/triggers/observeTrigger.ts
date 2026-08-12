@@ -1,5 +1,4 @@
 import {
-    Colour,
     listview,
     store,
     window
@@ -8,6 +7,7 @@ import {
     bindTriggerFireFeedback,
     TriggerFireInfo
 } from "../../model/triggerFireFeedback";
+import {WINDOW_COLOURS} from "../ui/windowColours";
 
 const titleText = store<string>("Observe Trigger");
 const listItems = store<string[][]>([]);
@@ -36,7 +36,7 @@ function onTriggerFired(info: TriggerFireInfo): void {
 
 const observeWindow = window({
     title: titleText,
-    colours: [Colour.DarkOliveGreen, Colour.DarkOliveGreen],
+    colours: WINDOW_COLOURS,
     width: { value: 360, min: 300, max: 560 },
     height: { value: 280, min: 200, max: 500 },
     position: "center",

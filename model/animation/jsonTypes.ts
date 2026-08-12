@@ -14,7 +14,13 @@ export interface CarEntersEventDesc extends TriggerEventDescBase {
     tile: TileCoords;
 }
 
-/** @deprecated Soft-loaded as carEnters; kept for reading old park storage. */
+export interface TrainEntersEventDesc extends TriggerEventDescBase {
+    type: "trainEnters";
+    rideId: number;
+    tile: TileCoords;
+}
+
+/** @deprecated Soft-loaded as carEnters / trainEnters; kept for reading old park storage. */
 export interface VehicleEntersEventDesc extends TriggerEventDescBase {
     type: "vehicleEnters";
     rideId: number;
@@ -38,6 +44,7 @@ export interface VariableChangeEventDesc extends TriggerEventDescBase {
 
 export type TriggerEventDesc =
     | CarEntersEventDesc
+    | TrainEntersEventDesc
     | VehicleEntersEventDesc
     | SingleImmediateEventDesc
     | StaffEventDesc
@@ -157,6 +164,35 @@ export interface TrackSetHeightStepDesc extends StepDescBase {
     baseHeight: number;
 }
 
+/** Cycle a ride's stacked track pieces on a tile (TI / Advanced Track Switch Track). */
+export interface SwitchTiTrackOrderStepDesc extends StepDescBase {
+    type: "switchTiTrackOrder";
+    tile: TileCoords;
+    rideId: number;
+}
+
+/** Advanced Track Lift/Drop Track parity: stop, travel, release, return. */
+export interface LiftDropTrackStepDesc extends StepDescBase, VehicleTargetDesc {
+    type: "liftDropTrack";
+    /** Start height in land units (runtime converts × 8 to pixels). */
+    startHeight?: number;
+    /** End height in land units (runtime converts × 8 to pixels). */
+    endHeight?: number;
+    /** Travel speed percent (AT default 100). */
+    speed: number;
+    /**
+     * When true, exit with the negated entry velocity (opposite direction).
+     * Default false: restore entry velocity as captured.
+     */
+    reverseExitDirection?: boolean;
+    /** @deprecated Legacy pixel fields — migrated to startHeight/endHeight on load. */
+    startZ?: number;
+    /** @deprecated Legacy pixel fields — migrated to startHeight/endHeight on load. */
+    endZ?: number;
+    /** @deprecated Removed — exit wait is no longer supported. */
+    exitWaitTicks?: number;
+}
+
 export interface EntityCoordsOverTimeStepDesc extends StepDescBase {
     deltaX?: number;
     deltaY?: number;
@@ -180,6 +216,8 @@ export type StepDesc =
     | VariableIncrementStepDesc
     | VariableDecrementStepDesc
     | TrackSetHeightStepDesc
+    | SwitchTiTrackOrderStepDesc
+    | LiftDropTrackStepDesc
     | CarCoordsOverTimeStepDesc
     | TrainCoordsOverTimeStepDesc;
 

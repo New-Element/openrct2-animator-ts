@@ -1,11 +1,12 @@
-import {button, Colour, horizontal, label, store, window} from "openrct2-flexui";
+import {button, horizontal, label, store, window} from "openrct2-flexui";
+import {WINDOW_COLOURS} from "../ui/windowColours";
 
 const messageText = store<string>("");
 let onConfirmed: (() => void) | null = null;
 
 const confirmWindow = window({
     title: "Delete Trigger",
-    colours: [Colour.DarkOliveGreen, Colour.DarkOliveGreen],
+    colours: WINDOW_COLOURS,
     width: 280,
     height: 120,
     position: "center",

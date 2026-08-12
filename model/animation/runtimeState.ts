@@ -13,6 +13,7 @@ import {
     resolveStaffIdByName
 } from "./entityRematch";
 import CarEntersEvent from "./trigger/event/carEntersEvent";
+import TrainEntersEvent from "./trigger/event/trainEntersEvent";
 import TriggerContext from "./trigger/triggerContext";
 
 export const RUNTIME_STATE_KEY = "animator.runtimeState";
@@ -27,6 +28,7 @@ export interface PersistedRunContext {
     carIndex?: number;
     staffName?: string;
     tile?: { x: number; y: number };
+    allowOffTile?: boolean;
 }
 
 export interface PersistedRun {
@@ -50,6 +52,8 @@ export interface RuntimeStateSnapshot {
     animationRunI: number;
     runs: PersistedRun[];
     carsOnTiles: PersistedCarOnTile[];
+    /** Lead cars on tiles for trainEnters edge detection (optional on older saves). */
+    trainsOnTiles?: PersistedCarOnTile[];
 }
 
 /**
@@ -104,6 +108,12 @@ function persistRunContext(context: TriggerContext): PersistedRunContext | null 
                 persisted.rideId = context.rideId;
                 persisted.trainIndex = context.trainIndex;
                 persisted.carIndex = context.carIndex;
+                if (context.tile) {
+                    persisted.tile = { x: context.tile.x, y: context.tile.y };
+                }
+                if (context.allowOffTile) {
+                    persisted.allowOffTile = true;
+                }
                 return persisted;
             }
             reportPluginError(
@@ -115,6 +125,12 @@ function persistRunContext(context: TriggerContext): PersistedRunContext | null 
         persisted.rideId = identity.rideId;
         persisted.trainIndex = identity.trainIndex;
         persisted.carIndex = identity.carIndex;
+        if (context.tile) {
+            persisted.tile = { x: context.tile.x, y: context.tile.y };
+        }
+        if (context.allowOffTile) {
+            persisted.allowOffTile = true;
+        }
         return persisted;
     }
 
@@ -172,12 +188,19 @@ function restoreTriggerContext(persisted: PersistedRunContext): TriggerContext |
             );
             return null;
         }
-        return {
+        const carCtx: TriggerContext = {
             target: { carId: carId },
             rideId: persisted.rideId,
             trainIndex: persisted.trainIndex,
             carIndex: persisted.carIndex
         };
+        if (persisted.tile) {
+            carCtx.tile = { x: persisted.tile.x, y: persisted.tile.y };
+        }
+        if (persisted.allowOffTile) {
+            carCtx.allowOffTile = true;
+        }
+        return carCtx;
     }
 
     if (persisted.targetKind === "tile") {
@@ -255,8 +278,10 @@ function captureRuns(host: RuntimeStateHost): PersistedRun[] {
     return runs;
 }
 
-function captureCarsOnTiles(): PersistedCarOnTile[] {
-    const raw = CarEntersEvent.getCarsOnTilesEntries();
+function captureEntityOnTiles(
+    raw: Array<{ carId: number; tileX: number; tileY: number }>,
+    label: string
+): PersistedCarOnTile[] {
     const out: PersistedCarOnTile[] = [];
     for (let i = 0; i < raw.length; i++) {
         const entry = raw[i];
@@ -264,7 +289,7 @@ function captureCarsOnTiles(): PersistedCarOnTile[] {
         if (!identity) {
             reportPluginError(
                 "runtimeState",
-                `Cannot identify car ${entry.carId} on tile (${entry.tileX},${entry.tileY}); skipping`
+                `Cannot identify ${label} ${entry.carId} on tile (${entry.tileX},${entry.tileY}); skipping`
             );
             continue;
         }
@@ -279,6 +304,14 @@ function captureCarsOnTiles(): PersistedCarOnTile[] {
     return out;
 }
 
+function captureCarsOnTiles(): PersistedCarOnTile[] {
+    return captureEntityOnTiles(CarEntersEvent.getCarsOnTilesEntries(), "car");
+}
+
+function captureTrainsOnTiles(): PersistedCarOnTile[] {
+    return captureEntityOnTiles(TrainEntersEvent.getTrainsOnTilesEntries(), "train head");
+}
+
 export function captureRuntimeState(host: RuntimeStateHost): RuntimeStateSnapshot {
     return {
         version: RUNTIME_STATE_VERSION,
@@ -286,7 +319,8 @@ export function captureRuntimeState(host: RuntimeStateHost): RuntimeStateSnapsho
         paused: host.paused,
         animationRunI: host.animationRunI,
         runs: captureRuns(host),
-        carsOnTiles: captureCarsOnTiles()
+        carsOnTiles: captureCarsOnTiles(),
+        trainsOnTiles: captureTrainsOnTiles()
     };
 }
 
@@ -328,7 +362,10 @@ function restoreRuns(host: RuntimeStateHost, runs: PersistedRun[]): void {
     host.animationRunI = Math.max(host.animationRunI, maxI);
 }
 
-function restoreCarsOnTiles(entries: PersistedCarOnTile[]): void {
+function rematchOnTilesEntries(
+    entries: PersistedCarOnTile[],
+    label: string
+): Array<{ carId: number; tileX: number; tileY: number }> {
     const rematched: Array<{ carId: number; tileX: number; tileY: number }> = [];
     for (let i = 0; i < entries.length; i++) {
         const entry = entries[i];
@@ -340,7 +377,7 @@ function restoreCarsOnTiles(entries: PersistedCarOnTile[]): void {
         if (carId === null) {
             reportPluginError(
                 "runtimeState",
-                `Could not rematch carsOnTiles ride=${entry.rideId} train=${entry.trainIndex} car=${entry.carIndex}; skipping`
+                `Could not rematch ${label} ride=${entry.rideId} train=${entry.trainIndex} car=${entry.carIndex}; skipping`
             );
             continue;
         }
@@ -350,7 +387,15 @@ function restoreCarsOnTiles(entries: PersistedCarOnTile[]): void {
             tileY: entry.tileY
         });
     }
-    CarEntersEvent.setCarsOnTilesEntries(rematched);
+    return rematched;
+}
+
+function restoreCarsOnTiles(entries: PersistedCarOnTile[]): void {
+    CarEntersEvent.setCarsOnTilesEntries(rematchOnTilesEntries(entries, "carsOnTiles"));
+}
+
+function restoreTrainsOnTiles(entries: PersistedCarOnTile[]): void {
+    TrainEntersEvent.setTrainsOnTilesEntries(rematchOnTilesEntries(entries, "trainsOnTiles"));
 }
 
 function isRuntimeStateSnapshot(data: unknown): data is RuntimeStateSnapshot {
@@ -383,6 +428,7 @@ export function restoreRuntimeState(host: RuntimeStateHost, data: unknown): void
 
     restoreRuns(host, Array.isArray(data.runs) ? data.runs : []);
     restoreCarsOnTiles(Array.isArray(data.carsOnTiles) ? data.carsOnTiles : []);
+    restoreTrainsOnTiles(Array.isArray(data.trainsOnTiles) ? data.trainsOnTiles : []);
 
     console.log(
         `[Animator] Restored runtime state: ${host.animationRuns.length} runs, tickCount=${host.tickCount}`
