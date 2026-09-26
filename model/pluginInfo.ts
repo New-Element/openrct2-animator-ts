@@ -2,7 +2,7 @@
  * Single source of truth for plugin identity shown in UI and stamped into parks.
  * Keep package.json "version" in sync with PLUGIN_VERSION manually.
  */
-export const PLUGIN_VERSION = "0.1.0";
+export const PLUGIN_VERSION = "1.0.0";
 
 export const PLUGIN_GITHUB_URL =
     "https://github.com/new-element/openrct2-animator-ts";
