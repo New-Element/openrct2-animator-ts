@@ -1,6 +1,7 @@
 /// <reference path="./../../../../openrct2.d.ts" />
 
 import {horizontal, label, spinner, store, twoway} from "openrct2-flexui";
+import {spinnerStep} from "../../../ui/spinnerStep";
 
 export function createModuloFields(onPersist: () => void) {
     const visibility = store<"visible" | "none">("none");
@@ -32,6 +33,7 @@ export function createModuloFields(onPersist: () => void) {
                 visibility
             }),
             spinner({
+                step: spinnerStep,
                 value: twoway(conditionModulo),
                 minimum: 1,
                 maximum: 10000,
@@ -47,6 +49,7 @@ export function createModuloFields(onPersist: () => void) {
                 visibility
             }),
             spinner({
+                step: spinnerStep,
                 value: twoway(conditionRemainder),
                 minimum: 0,
                 maximum: 10000,

@@ -8,12 +8,13 @@ import {
     horizontal,
     label,
     listview,
+    spinner,
     store,
-    textbox,
     twoway,
     vertical,
     window
 } from "openrct2-flexui";
+import {spinnerStep, spinnerStepSelector} from "../ui/spinnerStep";
 import {StepDesc} from "../../model/animation/jsonTypes";
 import createStep from "../../model/animation/step/createStep";
 import {
@@ -24,19 +25,25 @@ import {
     unlinkAnimationFromAllTriggers
 } from "../../model/animation/triggerAnimationLinks";
 import getConductor from "../../model/getConductor";
+import {error} from "../../model/logger";
 import {bindAnimationEditorOpener, goToTriggerEditor} from "../editorNavigation";
+import {nameTextField} from "../ui/nameTextField";
 import {WINDOW_COLOURS} from "../ui/windowColours";
 import {confirmDeleteAnimation} from "./confirmDeleteAnimation";
+import {openStepHelp} from "./steps/stepHelp";
 import {createStepEditorUi} from "./steps/stepUi";
 
 const editingAnimationId = store<string>("");
 const nameText = store<string>("");
+const ticksBetweenSteps = store<number>(0);
 
 const stepsListItems = store<string[]>([]);
 const selectedStepIndex = store<number>(-1);
 /** Drives the listview highlight so it stays in sync when steps are reordered. */
 const stepsSelectedCell = store<RowColumn | null>(null);
+const addStepCategoryIndex = store<number>(0);
 const addStepIndex = store<number>(0);
+const addStepLabels = store<string[]>([]);
 
 const linkedTriggersListItems = store<string[]>([]);
 const selectedLinkedTriggerIndex = store<number>(-1);
@@ -47,10 +54,11 @@ let addTriggerOptionIds: string[] = [];
 /** Parallel to linkedTriggersListItems for resolving selected linked trigger id. */
 let linkedTriggerIds: string[] = [];
 
-/** Right-hand editor body (move/delete + section boxes); hidden in empty state. */
+/** Right-hand editor body (move/clone/delete + section boxes); hidden in empty state. */
 const stepEditorVisibility = store<"visible" | "none">("none");
 const selectedStepEmptyVisibility = store<"visible" | "none">("visible");
 const selectedStepTitle = store<string>("Selected Step");
+const stepNameText = store<string>("");
 
 let onEditorClosed: (() => void) | null = null;
 
@@ -61,11 +69,25 @@ function persistSelectedStepFields(): void {
     }
     const next = stepUi.persistStep(current);
     if (next) {
-        replaceSelectedStep(next);
+        // Reloading the step editor would close the branch condition window.
+        replaceSelectedStep(next, false);
     }
 }
 
-const stepUi = createStepEditorUi(() => persistSelectedStepFields());
+const stepUi = createStepEditorUi(
+    () => persistSelectedStepFields(),
+    () => {
+        const animation = editingAnimation();
+        return animation ? animation.steps.length : 0;
+    }
+);
+addStepLabels.set(stepUi.stepLabelsForCategory(0));
+
+function selectAddStepCategory(index: number): void {
+    addStepCategoryIndex.set(index);
+    addStepIndex.set(0);
+    addStepLabels.set(stepUi.stepLabelsForCategory(index));
+}
 
 function editingAnimation() {
     return getConductor().animationsArray.findById(editingAnimationId.get());
@@ -77,7 +99,7 @@ function selectedStepDesc(): StepDesc | null {
     if (!animation || index < 0 || index >= animation.steps.length) {
         return null;
     }
-    const desc = animation.steps[index].getDataToPersist() as {type: string};
+    const desc = animation.steps[index].persistData() as {type: string};
     return stepUi.isKnownStepDesc(desc) ? desc : null;
 }
 
@@ -85,6 +107,7 @@ function showEmptySelectedStep(): void {
     stepEditorVisibility.set("none");
     selectedStepEmptyVisibility.set("visible");
     selectedStepTitle.set("Selected Step");
+    stepNameText.set("");
     stepUi.hideAllStepSections();
 }
 
@@ -113,7 +136,7 @@ function setSelectedStepIndex(index: number): void {
     stepsSelectedCell.set({row: index, column: 0});
 }
 
-function refreshStepsList(): void {
+function refreshStepsList(reloadEditor = true): void {
     const animation = editingAnimation();
     if (!animation) {
         stepsListItems.set([]);
@@ -121,7 +144,7 @@ function refreshStepsList(): void {
     }
     const rows: string[] = [];
     for (let i = 0; i < animation.steps.length; i++) {
-        const desc = animation.steps[i].getDataToPersist() as {type: string};
+        const desc = animation.steps[i].persistData() as {type: string};
         rows.push(
             stepUi.isKnownStepDesc(desc)
                 ? stepUi.stepRowLabel(desc)
@@ -138,7 +161,12 @@ function refreshStepsList(): void {
     }
     // Keep listview highlight aligned after reorder / refresh.
     stepsSelectedCell.set({row: selected, column: 0});
-    loadSelectedStepFields();
+    if (reloadEditor) {
+        loadSelectedStepFields();
+    }
+    else {
+        updateSelectedStepTitle();
+    }
 }
 
 function loadSelectedStepFields(): void {
@@ -150,10 +178,27 @@ function loadSelectedStepFields(): void {
 
     showSelectedStepEditor();
     updateSelectedStepTitle();
+    stepNameText.set(desc.name ?? "");
     stepUi.loadStep(desc);
 }
 
-function replaceSelectedStep(desc: StepDesc): void {
+function persistSelectedStepName(text: string): void {
+    stepNameText.set(text);
+    const current = selectedStepDesc();
+    if (!current) {
+        return;
+    }
+    const trimmed = text.trim();
+    const next = {...current};
+    if (trimmed) {
+        next.name = trimmed;
+    } else {
+        delete next.name;
+    }
+    replaceSelectedStep(next);
+}
+
+function replaceSelectedStep(desc: StepDesc, reloadEditor = true): void {
     const animation = editingAnimation();
     const index = selectedStepIndex.get();
     if (!animation || index < 0 || index >= animation.steps.length) {
@@ -161,7 +206,7 @@ function replaceSelectedStep(desc: StepDesc): void {
     }
     animation.steps[index] = createStep(desc);
     getConductor().animationsArray.save();
-    refreshStepsList();
+    refreshStepsList(reloadEditor);
     if (onEditorClosed) {
         onEditorClosed();
     }
@@ -172,9 +217,15 @@ function addStep(): void {
     if (!animation) {
         return;
     }
-    animation.steps.push(createStep(stepUi.createStepStub(addStepIndex.get())));
+    const newStep = createStep(stepUi.createStepStub(addStepCategoryIndex.get(), addStepIndex.get()));
+    const selected = selectedStepIndex.get();
+    const insertAt =
+        selected >= 0 && selected < animation.steps.length
+            ? selected + 1
+            : animation.steps.length;
+    animation.steps.splice(insertAt, 0, newStep);
     getConductor().animationsArray.save();
-    setSelectedStepIndex(animation.steps.length - 1);
+    setSelectedStepIndex(insertAt);
     refreshStepsList();
     if (onEditorClosed) {
         onEditorClosed();
@@ -191,6 +242,26 @@ function deleteSelectedStep(): void {
     animation.steps = next;
     setSelectedStepIndex(-1);
     getConductor().animationsArray.save();
+    refreshStepsList();
+    if (onEditorClosed) {
+        onEditorClosed();
+    }
+}
+
+function cloneSelectedStep(): void {
+    persistSelectedStepFields();
+    const animation = editingAnimation();
+    const index = selectedStepIndex.get();
+    if (!animation || index < 0 || index >= animation.steps.length) {
+        return;
+    }
+    const desc = JSON.parse(
+        JSON.stringify(animation.steps[index].persistData())
+    ) as StepDesc;
+    const insertAt = index + 1;
+    animation.steps.splice(insertAt, 0, createStep(desc));
+    getConductor().animationsArray.save();
+    setSelectedStepIndex(insertAt);
     refreshStepsList();
     if (onEditorClosed) {
         onEditorClosed();
@@ -336,7 +407,7 @@ const editorWindow = window({
                                 groupbox({
                                     text: "Name",
                                     content: [
-                                        textbox({
+                                        nameTextField({
                                             text: nameText,
                                             onChange: (text) => {
                                                 nameText.set(text);
@@ -416,14 +487,44 @@ const editorWindow = window({
                                             }
                                         }),
                                         horizontal([
+                                            label({
+                                                text: "Ticks Between Steps",
+                                                width: 130
+                                            }),
+                                            spinner({
+                                                step: spinnerStep,
+                                                value: twoway(ticksBetweenSteps),
+                                                minimum: 0,
+                                                maximum: 100000,
+                                                onChange: (value) => {
+                                                    ticksBetweenSteps.set(value);
+                                                    const animation = editingAnimation();
+                                                    if (!animation) {
+                                                        return;
+                                                    }
+                                                    animation.ticksBetweenSteps = Math.max(0, value | 0);
+                                                    getConductor().animationsArray.save();
+                                                    if (onEditorClosed) {
+                                                        onEditorClosed();
+                                                    }
+                                                }
+                                            })
+                                        ]),
+                                        horizontal([
                                             dropdown({
-                                                items: stepUi.ADD_STEP_LABELS,
+                                                items: stepUi.ADD_STEP_CATEGORY_LABELS,
+                                                selectedIndex: twoway(addStepCategoryIndex),
+                                                width: 130,
+                                                onChange: (index) => selectAddStepCategory(index)
+                                            }),
+                                            dropdown({
+                                                items: addStepLabels,
                                                 selectedIndex: twoway(addStepIndex),
-                                                width: 160
+                                                width: "1w"
                                             }),
                                             button({
-                                                text: "Add",
-                                                width: 40,
+                                                text: "Add Step",
+                                                width: 72,
                                                 height: 14,
                                                 onClick: () => addStep()
                                             })
@@ -440,6 +541,38 @@ const editorWindow = window({
                                 label({
                                     text: "Select A Step From The List.",
                                     visibility: selectedStepEmptyVisibility
+                                }),
+                                horizontal([
+                                    label({
+                                        text: "",
+                                        width: "1w",
+                                        height: 14,
+                                        visibility: stepEditorVisibility
+                                    }),
+                                    button({
+                                        text: "Help",
+                                        width: 46,
+                                        height: 14,
+                                        tooltip: "Step Help",
+                                        visibility: stepEditorVisibility,
+                                        onClick: () => {
+                                            const desc = selectedStepDesc();
+                                            if (!desc) {
+                                                return;
+                                            }
+                                            openStepHelp(desc);
+                                        }
+                                    })
+                                ]),
+                                groupbox({
+                                    text: "Name",
+                                    visibility: stepEditorVisibility,
+                                    content: [
+                                        nameTextField({
+                                            text: stepNameText,
+                                            onChange: (text) => persistSelectedStepName(text)
+                                        })
+                                    ]
                                 }),
                                 horizontal([
                                     button({
@@ -462,6 +595,13 @@ const editorWindow = window({
                                         height: 14,
                                         visibility: stepEditorVisibility,
                                         onClick: () => deleteSelectedStep()
+                                    }),
+                                    button({
+                                        text: "Clone",
+                                        width: 50,
+                                        height: 14,
+                                        visibility: stepEditorVisibility,
+                                        onClick: () => cloneSelectedStep()
                                     })
                                 ]),
                                 ...(stepUi.widgets as Parameters<typeof groupbox>[0]["content"])
@@ -469,18 +609,25 @@ const editorWindow = window({
                         })
                     ]
                 }),
-                button({
-                    text: "Delete Animation",
-                    width: 120,
-                    height: 14,
+                horizontal({
                     padding: {left: "1w"},
-                    onClick: () => deleteEditingAnimation()
+                    spacing: 6,
+                    content: [
+                        spinnerStepSelector(),
+                        button({
+                            text: "Delete Animation",
+                            width: 120,
+                            height: 14,
+                            onClick: () => deleteEditingAnimation()
+                        })
+                    ]
                 })
             ]
         })
     ],
     onClose: () => {
         getConductor().animationsArray.save();
+        stepUi.hideAllStepSections();
         if (onEditorClosed) {
             onEditorClosed();
         }
@@ -490,12 +637,13 @@ const editorWindow = window({
 export function openAnimationEditor(animationId: string, onClosed?: () => void): void {
     const animation = getConductor().animationsArray.findById(animationId);
     if (!animation) {
-        console.log(`[AnimationEditor] Animation "${animationId}" not found`);
+        error("animationEditor", `Animation "${animationId}" not found`);
         return;
     }
     onEditorClosed = onClosed || null;
     editingAnimationId.set(animation.id);
     nameText.set(animation.name);
+    ticksBetweenSteps.set(animation.ticksBetweenSteps);
     setSelectedStepIndex(-1);
     showEmptySelectedStep();
     selectedLinkedTriggerIndex.set(-1);

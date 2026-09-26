@@ -1,23 +1,36 @@
 /// <reference path="./../../../../openrct2.d.ts" />
 
-import {groupbox, horizontal, label, spinner, store, twoway} from "openrct2-flexui";
+import {groupbox, store} from "openrct2-flexui";
 import {WaitStepDesc} from "../../../../model/animation/jsonTypes";
+import {createNumberSourceFields} from "./numberSourceFields";
 
 export function createWaitFields(onPersist: () => void) {
     const visibility = store<"visible" | "none">("none");
-    const waitTicks = store<number>(40);
+    const ticks = createNumberSourceFields({
+        valueType: "int",
+        label: "Ticks",
+        minimum: 0,
+        maximum: 100000,
+        onPersist: onPersist,
+        visibility: visibility
+    });
 
     function hide(): void {
         visibility.set("none");
     }
 
-    function load(ticks: number): void {
+    function load(desc: WaitStepDesc): void {
         visibility.set("visible");
-        waitTicks.set(ticks);
+        ticks.load(desc.ticks, desc.ticksOrigin, desc.ticksVariableId);
     }
 
     function persist(): WaitStepDesc {
-        return {type: "wait", ticks: waitTicks.get()};
+        const source = ticks.read();
+        return {
+            type: "wait",
+            ticks: source.value,
+            ...(source.origin === "variable" ? {ticksOrigin: "variable", ticksVariableId: source.variableId || ""} : {})
+        };
     }
 
     const widgets = [
@@ -25,23 +38,7 @@ export function createWaitFields(onPersist: () => void) {
             text: "Wait",
             visibility,
             content: [
-                horizontal([
-                    label({
-                        text: "Ticks",
-                        width: 40,
-                        visibility
-                    }),
-                    spinner({
-                        value: twoway(waitTicks),
-                        minimum: 0,
-                        maximum: 100000,
-                        visibility,
-                        onChange: (value) => {
-                            waitTicks.set(value);
-                            onPersist();
-                        }
-                    })
-                ])
+                ...ticks.widgets
             ]
         })
     ];

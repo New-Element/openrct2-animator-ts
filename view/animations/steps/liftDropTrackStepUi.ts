@@ -17,6 +17,8 @@ export function createLiftDropTrackStepUi(
             endHeight: 16,
             speed: 100,
             reverseExitDirection: false,
+            waitBeforeMoveTicks: 50,
+            waitAfterMoveTicks: 0,
             useTriggerTarget: true
         }),
         load: (desc: StepDesc) => {
@@ -34,10 +36,7 @@ export function createLiftDropTrackStepUi(
             const target = vehicleTarget.readTarget();
             return {
                 type: "liftDropTrack",
-                startHeight: fieldsData.startHeight,
-                endHeight: fieldsData.endHeight,
-                speed: fieldsData.speed,
-                reverseExitDirection: fieldsData.reverseExitDirection,
+                ...fieldsData,
                 useTriggerTarget: target.useTriggerTarget,
                 rideId: target.rideId,
                 trainIndex: target.trainIndex

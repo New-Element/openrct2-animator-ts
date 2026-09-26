@@ -1,4 +1,5 @@
 import {SingleImmediateEventDesc} from "../../jsonTypes";
+import {withContextLists} from "../contextLists";
 import TriggerContext from "../triggerContext";
 import TriggerEvent from "./triggerEvent";
 
@@ -12,11 +13,11 @@ export default class SingleImmediateEvent extends TriggerEvent {
 
     tryFire(): TriggerContext[] {
         return [
-            {
+            withContextLists({
                 target: {
                     static: true
                 }
-            }
+            })
         ];
     }
 

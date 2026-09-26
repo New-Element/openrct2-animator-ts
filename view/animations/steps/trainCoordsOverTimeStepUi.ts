@@ -21,10 +21,7 @@ export function createTrainCoordsOverTimeStepUi(fields: CoordsFields): StepUiMod
             const coords = fields.readCoords();
             return {
                 type: "trainCoordsOverTime",
-                deltaX: coords.deltaX,
-                deltaY: coords.deltaY,
-                deltaZ: coords.deltaZ,
-                durationTicks: coords.durationTicks
+                ...coords
             };
         }
     };

@@ -1,6 +1,6 @@
 /// <reference path="./../../openrct2.d.ts" />
 
-import reportPluginError from "../reportPluginError";
+import {error} from "../logger";
 import PersistentModel from "./persistentModel";
 
 type loadArgs = object[] | false;
@@ -52,7 +52,7 @@ export default class PersistentArray {
             try {
                 this.items.push(this.getItem(data[i]));
             } catch (e) {
-                reportPluginError(
+                error(
                     this.name,
                     `Failed to load item at index ${i}; skipping`,
                     e

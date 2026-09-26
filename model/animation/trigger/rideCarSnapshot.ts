@@ -11,6 +11,8 @@ export interface CarPos {
     carIndex: number;
     tileX: number;
     tileY: number;
+    /** Signed track speed. Positive = forwards, negative = backwards. */
+    velocity: number;
 }
 
 let snapshotByRide: { [rideId: number]: CarPos[] } = {};
@@ -43,7 +45,8 @@ export function walkRide(rideId: number): CarPos[] {
                 trainIndex: trainIndex,
                 carIndex: carIndex,
                 tileX: Math.floor(trackLocation.x / 32),
-                tileY: Math.floor(trackLocation.y / 32)
+                tileY: Math.floor(trackLocation.y / 32),
+                velocity: car.velocity
             });
 
             const next = car.nextCarOnTrain;
@@ -80,7 +83,8 @@ export function walkRideTrainHeads(rideId: number): CarPos[] {
             trainIndex: trainIndex,
             carIndex: 0,
             tileX: Math.floor(trackLocation.x / 32),
-            tileY: Math.floor(trackLocation.y / 32)
+            tileY: Math.floor(trackLocation.y / 32),
+            velocity: car.velocity
         });
     }
 
@@ -92,20 +96,26 @@ export function walkRideTrainHeads(rideId: number): CarPos[] {
  * Cheap JS scan — not cached; invalidation would cost more than the scan.
  */
 export function collectRideIdsForCarTileEvents(
-    triggers: { event: { type: string } | null }[]
+    triggers: { event: TileEventForSnapshot | null }[]
 ): number[] {
     return collectRideIdsForEventType(triggers, "carEnters");
 }
 
 /** Distinct rideIds from trainEnters triggers. */
 export function collectRideIdsForTrainTileEvents(
-    triggers: { event: { type: string } | null }[]
+    triggers: { event: TileEventForSnapshot | null }[]
 ): number[] {
     return collectRideIdsForEventType(triggers, "trainEnters");
 }
 
+type TileEventForSnapshot = {
+    type: string;
+    rideId?: number;
+    isPollDue?: () => boolean;
+};
+
 function collectRideIdsForEventType(
-    triggers: { event: { type: string } | null }[],
+    triggers: { event: TileEventForSnapshot | null }[],
     eventType: string
 ): number[] {
     const seen: { [rideId: number]: boolean } = {};
@@ -115,7 +125,10 @@ function collectRideIdsForEventType(
         if (!event || event.type !== eventType) {
             continue;
         }
-        const rideId = (event as { rideId?: number }).rideId;
+        if (typeof event.isPollDue === "function" && !event.isPollDue()) {
+            continue;
+        }
+        const rideId = event.rideId;
         if (typeof rideId !== "number" || seen[rideId]) {
             continue;
         }

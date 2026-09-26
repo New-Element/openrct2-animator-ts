@@ -1,10 +1,12 @@
 /// <reference path="./../../../../openrct2.d.ts" />
 
-import {button, dropdown, horizontal, label, spinner, store, twoway, WritableStore} from "openrct2-flexui";
+import {dropdown, horizontal, label, twoway, WritableStore} from "openrct2-flexui";
 import TileCoords from "../../../../game/tileCoords";
+import {TileTargetDesc} from "../../../../model/animation/jsonTypes";
+import {goToRideButton, pickIconButton} from "../../../ui/mapIconButtons";
 import {pickRide} from "../../../ui/pickRide";
-import {pickTile} from "../../../ui/pickTile";
 import {RideSelectFields} from "./rideSelectFields";
+import {createTileTargetFields} from "./tileTargetFields";
 
 /**
  * Shared Ride + Tile pickers for track steps that target a map tile.
@@ -14,22 +16,28 @@ export function createRideTileFields(
     onPersist: () => void,
     visibility: WritableStore<"visible" | "none">
 ) {
-    const tileX = store<number>(0);
-    const tileY = store<number>(0);
+    const tileTarget = createTileTargetFields(onPersist, visibility);
 
-    function load(tile: TileCoords, rideId: number): void {
+    function load(target: TileTargetDesc, rideId: number): void {
         rideSelect.refreshRideOptions();
-        tileX.set(tile.x);
-        tileY.set(tile.y);
+        tileTarget.load(target);
         rideSelect.setSelectedByRideId(rideId);
     }
 
-    function getTile(): TileCoords {
-        return {x: tileX.get(), y: tileY.get()};
+    function readTarget(): TileTargetDesc {
+        return tileTarget.readTarget();
     }
 
     function getRideId(): number {
         return rideSelect.selectedRideId();
+    }
+
+    function isRelative(): boolean {
+        return tileTarget.isRelative();
+    }
+
+    function setAbsoluteTile(tile: TileCoords): void {
+        tileTarget.setAbsoluteTile(tile);
     }
 
     const widgets = [
@@ -47,10 +55,8 @@ export function createRideTileFields(
                     onPersist();
                 }
             }),
-            button({
-                text: "Pick Ride",
-                width: 70,
-                height: 14,
+            pickIconButton({
+                tooltip: "Pick Ride",
                 visibility,
                 onClick: () => {
                     pickRide((rideId) => {
@@ -61,60 +67,16 @@ export function createRideTileFields(
                         onPersist();
                     });
                 }
+            }),
+            goToRideButton({
+                visibility,
+                getRideId: () => rideSelect.selectedRideId()
             })
         ]),
-        label({
-            text: "Tile",
-            visibility
-        }),
-        horizontal([
-            label({
-                text: "X",
-                width: 12,
-                visibility
-            }),
-            spinner({
-                value: twoway(tileX),
-                minimum: 0,
-                maximum: 10000,
-                visibility,
-                onChange: (value) => {
-                    tileX.set(value);
-                    onPersist();
-                }
-            }),
-            label({
-                text: "Y",
-                width: 12,
-                visibility
-            }),
-            spinner({
-                value: twoway(tileY),
-                minimum: 0,
-                maximum: 10000,
-                visibility,
-                onChange: (value) => {
-                    tileY.set(value);
-                    onPersist();
-                }
-            }),
-            button({
-                text: "Pick Tile",
-                width: 70,
-                height: 14,
-                visibility,
-                onClick: () => {
-                    pickTile((tile) => {
-                        tileX.set(tile.x);
-                        tileY.set(tile.y);
-                        onPersist();
-                    });
-                }
-            })
-        ])
+        ...tileTarget.widgets
     ];
 
-    return {load, getTile, getRideId, widgets};
+    return {load, readTarget, getRideId, isRelative, setAbsoluteTile, widgets};
 }
 
 export type RideTileFields = ReturnType<typeof createRideTileFields>;

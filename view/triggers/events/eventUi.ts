@@ -1,17 +1,30 @@
 import {TriggerEventDesc} from "../../../model/animation/jsonTypes";
+import RideBreakdownEvent from "../../../model/animation/trigger/event/rideBreakdownEvent";
 import CarEntersEvent from "../../../model/animation/trigger/event/carEntersEvent";
 import TrainEntersEvent from "../../../model/animation/trigger/event/trainEntersEvent";
+import VehicleCrashEvent from "../../../model/animation/trigger/event/vehicleCrashEvent";
 import Trigger from "../../../model/animation/trigger/trigger";
 import {createCarEntersEventUi} from "./carEntersEventUi";
+import {createEveryDayEventUi} from "./everyDayEventUi";
+import {createParkLoadedEventUi} from "./parkLoadedEventUi";
+import {createEveryNTicksEventUi} from "./everyNTicksEventUi";
 import {EventUiModule, TriggerEventKind} from "./eventUiTypes";
+import {createEveryNTicksFields} from "./fields/everyNTicksFields";
+import {createOptionalRideFields} from "./fields/optionalRideFields";
 import {createRideTileFields} from "./fields/rideTileFields";
 import {createVariableChangeFields} from "./fields/variableChangeFields";
+import {createVariableThresholdFields} from "./fields/variableThresholdFields";
+import {createGuestGenerationEventUi} from "./guestGenerationEventUi";
 import {createManualEventUi} from "./manualEventUi";
+import {createRideBreakdownEventUi} from "./rideBreakdownEventUi";
 import {createSingleImmediateEventUi} from "./singleImmediateEventUi";
 import {createStaffEventUi} from "./staffEventUi";
 import {createTrainEntersEventUi} from "./trainEntersEventUi";
 import {createUnknownEventUi} from "./unknownEventUi";
 import {createVariableChangeEventUi} from "./variableChangeEventUi";
+import {createVariableThresholdEventUi} from "./variableThresholdEventUi";
+import {createVehicleCrashEventUi} from "./vehicleCrashEventUi";
+import {createWeatherChangeEventUi} from "./weatherChangeEventUi";
 
 export type {EventUiModule, TriggerEventKind} from "./eventUiTypes";
 
@@ -25,30 +38,66 @@ export type EventEditorUi = {
     syncEventKind(kind: TriggerEventKind, trigger: Trigger): void;
     saveCurrentEvent(trigger: Trigger): void;
     conditionVariablesLabel(kind: TriggerEventKind, variableName?: string): string;
-    selectedVariableName(): string;
+    selectedVariableName(kind?: TriggerEventKind): string;
     widgets: unknown[];
 };
 
 export function createEventEditorUi(
     getTrigger: () => Trigger | null,
-    onVariableHintChange: () => void
+    onVariableHintChange: () => void,
+    canPersist: () => boolean = () => true
 ): EventEditorUi {
     // Shared ride+tile editors for carEnters and trainEnters (same fields, different event).
-    const rideTileFields = createRideTileFields(getTrigger, (trigger) => {
-        if (trigger.event instanceof CarEntersEvent || trigger.event instanceof TrainEntersEvent) {
-            return trigger.event;
-        }
-        return null;
-    });
-    const variableChangeFields = createVariableChangeFields(getTrigger, onVariableHintChange);
+    const rideTileFields = createRideTileFields(
+        getTrigger,
+        (trigger) => {
+            if (trigger.event instanceof CarEntersEvent || trigger.event instanceof TrainEntersEvent) {
+                return trigger.event;
+            }
+            return null;
+        },
+        canPersist
+    );
+    const optionalRideFields = createOptionalRideFields(
+        getTrigger,
+        (trigger) => {
+            if (
+                trigger.event instanceof RideBreakdownEvent ||
+                trigger.event instanceof VehicleCrashEvent
+            ) {
+                return trigger.event;
+            }
+            return null;
+        },
+        canPersist
+    );
+    const variableChangeFields = createVariableChangeFields(
+        getTrigger,
+        onVariableHintChange,
+        canPersist
+    );
+    const variableThresholdFields = createVariableThresholdFields(
+        getTrigger,
+        onVariableHintChange,
+        canPersist
+    );
+    const everyNTicksFields = createEveryNTicksFields(getTrigger, canPersist);
 
     const modules: EventUiModule[] = [
         createManualEventUi(),
         createCarEntersEventUi(rideTileFields),
         createTrainEntersEventUi(rideTileFields),
         createSingleImmediateEventUi(),
+        createEveryNTicksEventUi(everyNTicksFields),
+        createEveryDayEventUi(),
+        createParkLoadedEventUi(),
+        createRideBreakdownEventUi(optionalRideFields),
+        createVehicleCrashEventUi(optionalRideFields),
+        createGuestGenerationEventUi(),
+        createWeatherChangeEventUi(),
         createStaffEventUi(),
         createVariableChangeEventUi(variableChangeFields),
+        createVariableThresholdEventUi(variableThresholdFields),
         createUnknownEventUi()
     ];
 
@@ -116,6 +165,13 @@ export function createEventEditorUi(
         return `Available: ${vars.join(", ")}`;
     }
 
+    function selectedVariableName(kind?: TriggerEventKind): string {
+        if (kind === "variableThreshold") {
+            return variableThresholdFields.selectedVariableName();
+        }
+        return variableChangeFields.selectedVariableName();
+    }
+
     return {
         EDITOR_EVENT_LABELS,
         getEventUi,
@@ -126,8 +182,14 @@ export function createEventEditorUi(
         syncEventKind,
         saveCurrentEvent,
         conditionVariablesLabel,
-        selectedVariableName: () => variableChangeFields.selectedVariableName(),
-        widgets: [...rideTileFields.widgets, ...variableChangeFields.widgets]
+        selectedVariableName,
+        widgets: [
+            ...rideTileFields.widgets,
+            ...optionalRideFields.widgets,
+            ...everyNTicksFields.widgets,
+            ...variableChangeFields.widgets,
+            ...variableThresholdFields.widgets
+        ]
     };
 }
 
@@ -142,10 +204,26 @@ function eventKindFromEventType(type: string): TriggerEventKind {
             return "carEnters";
         case "singleImmediate":
             return "singleImmediate";
+        case "everyNTicks":
+            return "everyNTicks";
+        case "everyDay":
+            return "everyDay";
+        case "parkLoaded":
+            return "parkLoaded";
+        case "rideBreakdown":
+            return "rideBreakdown";
+        case "vehicleCrash":
+            return "vehicleCrash";
+        case "guestGeneration":
+            return "guestGeneration";
+        case "weatherChange":
+            return "weatherChange";
         case "staff":
             return "staff";
         case "variableChange":
             return "variableChange";
+        case "variableThreshold":
+            return "variableThreshold";
         default:
             return "unknown";
     }

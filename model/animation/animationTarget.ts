@@ -16,4 +16,8 @@ export interface StaffTarget {
     staffId: number;
 }
 
-export type AnimationTarget = CarTarget | TileTarget | StaticTarget | StaffTarget;
+export interface GuestTarget {
+    guestId: number;
+}
+
+export type AnimationTarget = CarTarget | TileTarget | StaticTarget | StaffTarget | GuestTarget;

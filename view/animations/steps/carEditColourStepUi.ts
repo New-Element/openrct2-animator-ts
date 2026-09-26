@@ -21,7 +21,7 @@ export function createCarEditColourStepUi(
             if (desc.type !== "carEditColour") {
                 return;
             }
-            colour.load(desc.value);
+            colour.load(desc);
             vehicleTarget.load(desc, true);
         },
         persist: (current: StepDesc): StepDesc | null => {
@@ -31,7 +31,7 @@ export function createCarEditColourStepUi(
             const target = vehicleTarget.readTarget();
             return {
                 type: "carEditColour",
-                value: colour.readValue(),
+                ...colour.read(),
                 useTriggerTarget: target.useTriggerTarget,
                 rideId: target.rideId,
                 trainIndex: target.trainIndex,

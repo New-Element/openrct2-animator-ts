@@ -9,7 +9,9 @@ export function createTrainEntersEventUi(fields: RideTileFields): EventUiModule 
         createStub: () => ({
             type: "trainEnters",
             rideId: 0,
-            tile: {x: 0, y: 0}
+            tiles: [],
+            direction: "either",
+            checkEveryTicks: 1
         }),
         hide: () => fields.hide(),
         load: (trigger: Trigger) => fields.load(trigger),

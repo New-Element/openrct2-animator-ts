@@ -6,8 +6,16 @@ export type TriggerEventKind =
     | "carEnters"
     | "trainEnters"
     | "singleImmediate"
+    | "everyNTicks"
+    | "everyDay"
+    | "parkLoaded"
+    | "rideBreakdown"
+    | "vehicleCrash"
+    | "guestGeneration"
+    | "weatherChange"
     | "staff"
     | "variableChange"
+    | "variableThreshold"
     | "unknown";
 
 export type EventUiModule = {

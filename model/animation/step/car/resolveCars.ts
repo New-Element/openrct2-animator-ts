@@ -1,54 +1,43 @@
 /// <reference path="./../../../../openrct2.d.ts" />
 
-import {identifyCar, resolveCarId} from "../../entityRematch";
+import {CarIdentity, carById, resolveCarId} from "../../entityRematch";
+import {contextCars, contextTrains} from "../../trigger/contextLists";
 import StepRunContext from "../stepRunContext";
 
-export function resolveTriggerCar(run: StepRunContext): Car | null {
-    const target = run.target;
-    if (!("carId" in target)) {
+function carFromIdentity(identity: CarIdentity): Car | null {
+    const carId = resolveCarId(identity);
+    if (carId === null) {
         return null;
     }
-    const entity = map.getEntity(target.carId);
-    if (!entity || entity.type !== "car") {
-        return null;
-    }
-    return entity as Car;
+    return carById(carId);
 }
 
-/**
- * Head car of the train that contains the trigger car (not the firer itself).
- */
-export function resolveTriggerTrainHead(run: StepRunContext): Car | null {
-    const ctx = run.triggerContext;
-    let rideId = ctx.rideId;
-    let trainIndex = ctx.trainIndex;
-
-    if (typeof rideId !== "number" || typeof trainIndex !== "number") {
-        const triggerCar = resolveTriggerCar(run);
-        if (!triggerCar || triggerCar.id === null) {
-            return null;
+export function resolveTriggerCars(run: StepRunContext): Car[] {
+    const identities = contextCars(run.triggerContext);
+    const cars: Car[] = [];
+    for (let i = 0; i < identities.length; i++) {
+        const car = carFromIdentity(identities[i]);
+        if (car) {
+            cars.push(car);
         }
-        const identity = identifyCar(triggerCar.id);
-        if (!identity) {
-            return null;
-        }
-        rideId = identity.rideId;
-        trainIndex = identity.trainIndex;
     }
+    return cars;
+}
 
-    const headId = resolveCarId({
-        rideId: rideId,
-        trainIndex: trainIndex,
-        carIndex: 0
-    });
-    if (headId === null) {
-        return null;
+export function resolveTriggerTrainHeads(run: StepRunContext): Car[] {
+    const trains = contextTrains(run.triggerContext);
+    const heads: Car[] = [];
+    for (let i = 0; i < trains.length; i++) {
+        const head = carFromIdentity({
+            rideId: trains[i].rideId,
+            trainIndex: trains[i].trainIndex,
+            carIndex: 0
+        });
+        if (head) {
+            heads.push(head);
+        }
     }
-    const entity = map.getEntity(headId);
-    if (!entity || entity.type !== "car") {
-        return null;
-    }
-    return entity as Car;
+    return heads;
 }
 
 /** Walk a train from any car on it by following nextCarOnTrain. */
@@ -60,15 +49,23 @@ export function walkTrainFromHead(head: Car | null): Car[] {
         if (car.nextCarOnTrain === null) {
             break;
         }
-        const next = map.getEntity(car.nextCarOnTrain);
-        if (!next || next.type !== "car") {
+        const next = carById(car.nextCarOnTrain);
+        if (!next) {
             break;
         }
-        car = next as Car;
+        car = next;
     }
     return cars;
 }
 
 export function resolveTriggerTrainCars(run: StepRunContext): Car[] {
-    return walkTrainFromHead(resolveTriggerTrainHead(run));
+    const heads = resolveTriggerTrainHeads(run);
+    const cars: Car[] = [];
+    for (let i = 0; i < heads.length; i++) {
+        const trainCars = walkTrainFromHead(heads[i]);
+        for (let j = 0; j < trainCars.length; j++) {
+            cars.push(trainCars[j]);
+        }
+    }
+    return cars;
 }

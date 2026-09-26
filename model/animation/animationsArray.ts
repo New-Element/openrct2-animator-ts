@@ -49,9 +49,6 @@ export default class AnimationsArray extends PersistentArray {
         super.load(normalized);
         if (migrated && dataIn === false) {
             this.save();
-            console.log(
-                "[Animator] Migrated Lift/Drop Track steps to land-unit heights in park storage"
-            );
         }
     }
 
@@ -64,7 +61,7 @@ export default class AnimationsArray extends PersistentArray {
         for (let a = 0; a < this.items.length; a++) {
             const animation = this.items[a];
             for (let s = 0; s < animation.steps.length; s++) {
-                const raw = animation.steps[s].getDataToPersist() as StepDesc;
+                const raw = animation.steps[s].persistData() as StepDesc;
                 if (raw.type !== "liftDropTrack") {
                     continue;
                 }

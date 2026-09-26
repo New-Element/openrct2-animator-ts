@@ -7,7 +7,8 @@ import getConductor from "../../../../model/getConductor";
 
 export function createVariableChangeFields(
     getTrigger: () => Trigger | null,
-    onAfterSave: () => void
+    onAfterSave: () => void,
+    canPersist: () => boolean = () => true
 ) {
     const visibility = store<"visible" | "none">("none");
     const variableDropdownItems = store<string[]>(["(No Variables)"]);
@@ -75,6 +76,9 @@ export function createVariableChangeFields(
     }
 
     function persistFromUi(): void {
+        if (!canPersist()) {
+            return;
+        }
         const trigger = getTrigger();
         if (trigger) {
             save(trigger);

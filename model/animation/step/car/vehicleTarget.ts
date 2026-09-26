@@ -1,11 +1,11 @@
 /// <reference path="./../../../../openrct2.d.ts" />
 
-import {resolveCarId} from "../../entityRematch";
+import {carById, resolveCarId} from "../../entityRematch";
 import {VehicleTargetDesc} from "../../jsonTypes";
 import StepRunContext from "../stepRunContext";
 import {
-    resolveTriggerCar,
-    resolveTriggerTrainHead,
+    resolveTriggerCars,
+    resolveTriggerTrainHeads,
     walkTrainFromHead
 } from "./resolveCars";
 
@@ -14,19 +14,18 @@ export function usesTriggerTarget(target: VehicleTargetDesc): boolean {
 }
 
 /**
- * Resolve the head car for a step's vehicle target (trigger car or explicit ride/train/car).
- * For trigger targeting this is the firer car (car steps), not the train head.
+ * Resolve cars for a step's vehicle target (context cars, or one explicit car).
  */
-export function resolveTargetHeadCar(
+export function resolveTargetHeadCars(
     run: StepRunContext,
     target: VehicleTargetDesc
-): Car | null {
+): Car[] {
     if (usesTriggerTarget(target)) {
-        return resolveTriggerCar(run);
+        return resolveTriggerCars(run);
     }
 
     if (typeof target.rideId !== "number" || typeof target.trainIndex !== "number") {
-        return null;
+        return [];
     }
 
     const carIndex = typeof target.carIndex === "number" ? target.carIndex : 0;
@@ -36,14 +35,14 @@ export function resolveTargetHeadCar(
         carIndex: carIndex
     });
     if (carId === null) {
-        return null;
+        return [];
     }
 
-    const entity = map.getEntity(carId);
-    if (!entity || entity.type !== "car") {
-        return null;
+    const car = carById(carId);
+    if (!car) {
+        return [];
     }
-    return entity as Car;
+    return [car];
 }
 
 /**
@@ -54,7 +53,15 @@ export function resolveTargetTrainCars(
     target: VehicleTargetDesc
 ): Car[] {
     if (usesTriggerTarget(target)) {
-        return walkTrainFromHead(resolveTriggerTrainHead(run));
+        const heads = resolveTriggerTrainHeads(run);
+        const cars: Car[] = [];
+        for (let i = 0; i < heads.length; i++) {
+            const trainCars = walkTrainFromHead(heads[i]);
+            for (let j = 0; j < trainCars.length; j++) {
+                cars.push(trainCars[j]);
+            }
+        }
+        return cars;
     }
 
     if (typeof target.rideId !== "number" || typeof target.trainIndex !== "number") {
@@ -69,11 +76,11 @@ export function resolveTargetTrainCars(
     if (headId === null) {
         return [];
     }
-    const entity = map.getEntity(headId);
-    if (!entity || entity.type !== "car") {
+    const head = carById(headId);
+    if (!head) {
         return [];
     }
-    return walkTrainFromHead(entity as Car);
+    return walkTrainFromHead(head);
 }
 
 /** Fields to persist for vehicle targeting (omit ids when using trigger). */

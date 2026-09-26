@@ -12,7 +12,7 @@ export function createWaitStepUi(fields: WaitFields): StepUiModule {
             if (desc.type !== "wait") {
                 return;
             }
-            fields.load(desc.ticks);
+            fields.load(desc);
         },
         persist: (current: StepDesc): StepDesc | null => {
             if (current.type !== "wait") {

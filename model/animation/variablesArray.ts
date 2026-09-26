@@ -23,6 +23,15 @@ export default class VariablesArray extends PersistentArray {
         return undefined;
     }
 
+    findByName(name: string): Variable | undefined {
+        for (let i = 0; i < this.items.length; i++) {
+            if (this.items[i].name === name) {
+                return this.items[i];
+            }
+        }
+        return undefined;
+    }
+
     removeById(id: string): boolean {
         const next: Variable[] = [];
         let removed = false;

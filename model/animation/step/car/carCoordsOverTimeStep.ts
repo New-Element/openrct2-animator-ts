@@ -3,22 +3,41 @@
 import {CarCoordsOverTimeStepDesc} from "../../jsonTypes";
 import StepRunContext from "../stepRunContext";
 import EntityCoordsOverTimeStep from "./entityCoordsOverTimeStep";
-import {resolveTriggerCar} from "./resolveCars";
+import {
+    persistVehicleTargetFields,
+    resolveTargetHeadCars,
+    usesTriggerTarget
+} from "./vehicleTarget";
 
 export default class CarCoordsOverTimeStep extends EntityCoordsOverTimeStep {
+    useTriggerTarget: boolean = true;
+    rideId?: number;
+    trainIndex?: number;
+    carIndex?: number;
+
     constructor(obj: CarCoordsOverTimeStepDesc) {
         super(obj);
+        this.useTriggerTarget = usesTriggerTarget(obj);
+        if (typeof obj.rideId === "number") {
+            this.rideId = obj.rideId;
+        }
+        if (typeof obj.trainIndex === "number") {
+            this.trainIndex = obj.trainIndex;
+        }
+        if (typeof obj.carIndex === "number") {
+            this.carIndex = obj.carIndex;
+        }
     }
 
     protected resolveCars(run: StepRunContext): Car[] {
-        const car = resolveTriggerCar(run);
-        return car ? [car] : [];
+        return resolveTargetHeadCars(run, this);
     }
 
     getDataToPersist(): object {
         return {
             type: "carCoordsOverTime",
-            ...this.persistCoordsFields()
+            ...this.persistCoordsFields(),
+            ...persistVehicleTargetFields(this)
         };
     }
 }

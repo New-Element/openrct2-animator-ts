@@ -12,16 +12,18 @@ export function createVariableDecrementStepUi(fields: VariableStepFields): StepU
             if (desc.type !== "variableDecrement") {
                 return;
             }
-            fields.loadAmount(desc.variableId, desc.amount);
+            fields.loadAmount(desc.variableId, desc.amount, desc.amountOrigin, desc.amountVariableId);
         },
         persist: (current: StepDesc): StepDesc | null => {
             if (current.type !== "variableDecrement") {
                 return null;
             }
+            const amount = fields.readAmountSource();
             return {
                 type: "variableDecrement",
                 variableId: fields.selectedVariableId(),
-                amount: fields.readAmount()
+                amount: amount.value,
+                ...(amount.origin === "variable" ? {amountOrigin: "variable", amountVariableId: amount.variableId || ""} : {})
             };
         }
     };

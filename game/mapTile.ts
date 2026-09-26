@@ -6,6 +6,10 @@ import TileCoords from "./tileCoords";
 const ELEMENT_SIZE = 16;
 /** Bit on element flags byte (offset 1) marking the last element on the tile. */
 const LAST_ELEMENT_FLAG = 128;
+/** Byte on each 16-byte element that holds the block-brake closed flag. */
+const BLOCK_BRAKE_FLAGS_OFFSET = 11;
+/** Set when a block brake is closed. */
+const BLOCK_BRAKE_CLOSED_FLAG = 32;
 
 /**
  * Thin wrapper around OpenRCT2's Tile. Owns element listing and any raw
@@ -115,6 +119,15 @@ export default class MapTile {
     }
 
     /**
+     * Set land height and keep clearance in sync (same delta).
+     */
+    setSurfaceBaseHeight(surface: SurfaceElement, baseHeight: number): void {
+        const heightDelta = baseHeight - surface.baseHeight;
+        surface.baseHeight = baseHeight;
+        surface.clearanceHeight += heightDelta;
+    }
+
+    /**
      * Shift base and clearance by the same delta (land units).
      */
     adjustTrackHeight(track: TrackElement, heightDelta: number): void {
@@ -182,5 +195,64 @@ export default class MapTile {
         }
 
         this.tile.data = data;
+    }
+
+    /**
+     * Index of the first track matching ride + trackType, if any.
+     */
+    findTrackIndex(rideId: number, trackType: number): number | null {
+        for (let i = 0; i < this.tile.numElements; i++) {
+            const element = this.tile.getElement(i);
+            if (element.type !== "track") {
+                continue;
+            }
+            const track = element as TrackElement;
+            if (track.ride === rideId && track.trackType === trackType) {
+                return i;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Block-brake closed flag: element byte 11, bit 32. Closed when set.
+     */
+    isBlockBrakeClosed(elementIndex: number): boolean {
+        const data = this.tile.data;
+        const flags = data[elementIndex * ELEMENT_SIZE + BLOCK_BRAKE_FLAGS_OFFSET];
+        return (flags & BLOCK_BRAKE_CLOSED_FLAG) !== 0;
+    }
+
+    setBlockBrakeClosed(elementIndex: number, closed: boolean): void {
+        const data = this.tile.data;
+        const offset = elementIndex * ELEMENT_SIZE + BLOCK_BRAKE_FLAGS_OFFSET;
+        if (closed) {
+            data[offset] |= BLOCK_BRAKE_CLOSED_FLAG;
+        } else {
+            data[offset] &= ~BLOCK_BRAKE_CLOSED_FLAG;
+        }
+        this.tile.data = data;
+    }
+
+    surface(): SurfaceElement | null {
+        for (let i = 0; i < this.tile.numElements; i++) {
+            const element = this.tile.getElement(i);
+            if (element.type === "surface") {
+                return element as SurfaceElement;
+            }
+        }
+        return null;
+    }
+
+    /** Footpath elements in stack order (OpenRCT2 typed FootpathElement). */
+    footpaths(): FootpathElement[] {
+        const result: FootpathElement[] = [];
+        for (let i = 0; i < this.tile.numElements; i++) {
+            const element = this.tile.getElement(i);
+            if (element.type === "footpath") {
+                result.push(element as FootpathElement);
+            }
+        }
+        return result;
     }
 }

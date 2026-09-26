@@ -18,13 +18,13 @@ export function createSwitchTiTrackOrderFields(
 
     function load(desc: SwitchTiTrackOrderStepDesc): void {
         visibility.set("visible");
-        rideTile.load(desc.tile, desc.rideId);
+        rideTile.load(desc, desc.rideId);
     }
 
     function persist(): SwitchTiTrackOrderStepDesc {
         return {
             type: "switchTiTrackOrder",
-            tile: rideTile.getTile(),
+            ...rideTile.readTarget(),
             rideId: rideTile.getRideId()
         };
     }

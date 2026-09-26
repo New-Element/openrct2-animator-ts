@@ -13,7 +13,7 @@ export const STATIC_TRIGGERS: TriggerDesc[] = [
         event: {
             type: "carEnters",
             rideId: 6,
-            tile: { x: 91, y: 135 }
+            tiles: [{ x: 91, y: 135 }]
         },
         conditions: [],
         animationIds: ["library-demo-sequence"]

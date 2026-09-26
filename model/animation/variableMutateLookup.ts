@@ -1,13 +1,16 @@
+import {error} from "../logger";
+import {VariableStoredValue} from "./jsonTypes";
+
 export type VariableMutateMode = "set" | "increment" | "decrement";
 
 type MutateVariableFn = (
     variableId: string,
     mode: VariableMutateMode,
-    value: number | string
+    value: VariableStoredValue
 ) => boolean;
 
 let mutateImpl: MutateVariableFn = () => {
-    console.log("[VariableMutate] Conductor not bound");
+    error("variable", "Conductor not bound for mutate");
     return false;
 };
 
@@ -18,7 +21,7 @@ export function bindMutateVariable(fn: MutateVariableFn): void {
 export function mutateVariable(
     variableId: string,
     mode: VariableMutateMode,
-    value: number | string
+    value: VariableStoredValue
 ): boolean {
     return mutateImpl(variableId, mode, value);
 }

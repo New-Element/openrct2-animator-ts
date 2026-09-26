@@ -1,0 +1,65 @@
+---
+description: Use model/logger for all plugin logging and debugging
+alwaysApply: true
+---
+
+# Logging
+
+All plugin logging and debugging goes through [`model/logger.ts`](model/logger.ts). Do not use `console.log`, `console.error`, `console.warn`, or ad-hoc log helpers.
+
+## API
+
+```typescript
+import {log, error} from "../model/logger"; // adjust relative path
+
+log("area", "message", { kind?, triggerId?, animationId?, trainIndex?, carIndex?, detail? });
+error("area", "message", detail?, meta?); // failures; prefer over throwing on load/tick paths
+```
+
+- `area`: short source tag (`trigger`, `animation`, `step`, `tick`, `runtimeState`, …)
+- `log`: expected lifecycle / info events
+- `error`: real failures; pass `meta.triggerId` / `meta.animationId` for Logs-tab filters
+
+OpenRCT2’s console only has `log`; the logger prefixes errors as `[Animator][error][area]`. Entries also go to the in-memory buffer shown on the Logs tab.
+
+## Allowed lifecycle `log` kinds
+
+Use structured `kind` when applicable:
+
+- `triggerFired` — via `reportTriggerFired` / trigger success paths
+- `animationStarted` — when a run is actually started
+- `stepStarted` — when a step begins on a run
+- `animationConcluded` — when a run is removed (include `endReason`)
+
+Do **not** add variable-change spam unless Simon explicitly asks.
+
+Stamp `triggerId` / `animationId` on runtime lifecycle logs and errors so the Logs tab filters work.
+
+## Logs tab
+
+- Filters: **All Triggers** / **All Animations** (AND). Reset both to All when the Animator window opens.
+- UI reads the shared buffer via `subscribe` / `getRecentLogs` / `clearLogs`. Do not keep a parallel observe/fire-only buffer.
+
+## Do / don’t
+
+```typescript
+// BAD
+console.log(`[LiftDropTrack] ${msg}`);
+console.log(`[Animator] Loading…`);
+
+// GOOD — failure (filterable)
+error("tick", `Animation run "${name}" failed`, e, {
+    animationId: id,
+    triggerId: sourceTriggerId
+});
+
+// GOOD — lifecycle
+log("animation", `Animation "${name}" started`, {
+    kind: "animationStarted",
+    animationId: id,
+    triggerId: triggerId,
+    trainIndex: context.trainIndex
+});
+```
+
+- Temporary debug: still use `log`/`error` with a clear `area`; remove or keep only if Simon wants it permanent.

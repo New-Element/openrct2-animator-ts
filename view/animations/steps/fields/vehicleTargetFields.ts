@@ -1,7 +1,8 @@
 /// <reference path="./../../../../openrct2.d.ts" />
 
-import {button, checkbox, dropdown, groupbox, horizontal, label, store, twoway} from "openrct2-flexui";
+import {checkbox, dropdown, groupbox, horizontal, label, store, twoway} from "openrct2-flexui";
 import {walkRide} from "../../../../model/animation/trigger/rideCarSnapshot";
+import {goToEntityButton, goToRideButton, pickIconButton} from "../../../ui/mapIconButtons";
 import {pickRide} from "../../../ui/pickRide";
 import {RideSelectFields} from "./rideSelectFields";
 
@@ -12,9 +13,17 @@ export type VehicleTargetDescSlice = {
     carIndex?: number;
 };
 
+export type VehicleTargetFieldLabels = {
+    carTrigger?: string;
+    trainTrigger?: string;
+    carTitle?: string;
+    trainTitle?: string;
+};
+
 export function createVehicleTargetFields(
     rideSelect: RideSelectFields,
-    onPersist: () => void
+    onPersist: () => void,
+    labels?: VehicleTargetFieldLabels
 ) {
     const sectionVisibility = store<"visible" | "none">("none");
     const vehicleTargetVisibility = store<"visible" | "none">("none");
@@ -88,8 +97,16 @@ export function createVehicleTargetFields(
     function load(desc: VehicleTargetDescSlice, carStep: boolean): void {
         isCarStep = carStep;
         sectionVisibility.set("visible");
-        applyToTriggerLabel.set(carStep ? "Apply To Trigger Car" : "Apply To Trigger Train");
-        vehicleSelectTitle.set(carStep ? "Select Car" : "Select Train");
+        applyToTriggerLabel.set(
+            carStep
+                ? (labels && labels.carTrigger) || "Apply To Trigger Car"
+                : (labels && labels.trainTrigger) || "Apply To Trigger Train"
+        );
+        vehicleSelectTitle.set(
+            carStep
+                ? (labels && labels.carTitle) || "Select Car"
+                : (labels && labels.trainTitle) || "Select Train"
+        );
         useTriggerTargetChecked.set(desc.useTriggerTarget !== false);
         syncVehicleTargetVisibility();
         rideSelect.refreshRideOptions();
@@ -108,6 +125,18 @@ export function createVehicleTargetFields(
                 typeof desc.carIndex === "number" ? desc.carIndex : 0
             );
         }
+    }
+
+    function selectedVehicleId(): number | undefined {
+        const cars = walkRide(rideSelect.selectedRideId());
+        const trainIndex = trainSelectedIndex.get();
+        const carIndex = isCarStep ? carSelectedIndex.get() : 0;
+        for (let i = 0; i < cars.length; i++) {
+            if (cars[i].trainIndex === trainIndex && cars[i].carIndex === carIndex) {
+                return cars[i].carId;
+            }
+        }
+        return undefined;
     }
 
     function readTarget(): VehicleTargetDescSlice {
@@ -170,10 +199,8 @@ export function createVehicleTargetFields(
                             onPersist();
                         }
                     }),
-                    button({
-                        text: "Pick Ride",
-                        width: 70,
-                        height: 14,
+                    pickIconButton({
+                        tooltip: "Pick Ride",
                         visibility: vehicleTargetVisibility,
                         onClick: () => {
                             pickRide((rideId) => {
@@ -192,24 +219,35 @@ export function createVehicleTargetFields(
                                 onPersist();
                             });
                         }
+                    }),
+                    goToRideButton({
+                        visibility: vehicleTargetVisibility,
+                        getRideId: () => rideSelect.selectedRideId()
                     })
                 ]),
                 label({
                     text: "Train",
                     visibility: vehicleTargetVisibility
                 }),
-                dropdown({
-                    items: trainDropdownItems,
-                    selectedIndex: twoway(trainSelectedIndex),
-                    visibility: vehicleTargetVisibility,
-                    onChange: (index) => {
-                        trainSelectedIndex.set(index);
-                        if (isCarStep) {
-                            refreshCarOptions(rideSelect.selectedRideId(), trainSelectedIndex.get(), 0);
+                horizontal([
+                    dropdown({
+                        items: trainDropdownItems,
+                        selectedIndex: twoway(trainSelectedIndex),
+                        visibility: vehicleTargetVisibility,
+                        onChange: (index) => {
+                            trainSelectedIndex.set(index);
+                            if (isCarStep) {
+                                refreshCarOptions(rideSelect.selectedRideId(), trainSelectedIndex.get(), 0);
+                            }
+                            onPersist();
                         }
-                        onPersist();
-                    }
-                }),
+                    }),
+                    goToEntityButton({
+                        tooltip: "Go To Vehicle",
+                        visibility: vehicleTargetVisibility,
+                        getEntityId: () => selectedVehicleId()
+                    })
+                ]),
                 label({
                     text: "Car",
                     visibility: vehicleCarVisibility

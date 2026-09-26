@@ -89,13 +89,18 @@ function highlightForRidePick(event: PickerToolEvent): void {
  * Activate a ride picker tool. Click a vehicle or track piece belonging to a ride.
  * Calls onPicked with the ride id, then cancels.
  */
-export function pickRide(onPicked: (rideId: number) => void): void {
+export function pickRide(onPicked: (rideId: number) => void, onToolFinish?: () => void): void {
     activatePickerTool<number>({
         id: TOOL_ID,
         filter: ["ride", "entity"],
         resolve: (event) => resolveRideId(event),
         onHover: (_rideId, event) => highlightForRidePick(event),
         onPick: onPicked,
-        onFinish: () => clearTileSelection()
+        onFinish: () => {
+            clearTileSelection();
+            if (onToolFinish) {
+                onToolFinish();
+            }
+        }
     });
 }

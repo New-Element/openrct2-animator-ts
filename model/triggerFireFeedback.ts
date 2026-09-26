@@ -1,30 +1,24 @@
 /// <reference path="./../openrct2.d.ts" />
 
 import TriggerContext from "./animation/trigger/triggerContext";
+import {log} from "./logger";
 
-export interface TriggerFireInfo {
-    triggerId: string;
-    tick: number;
-    trainIndex?: number;
-    carIndex?: number;
-}
-
-type TriggerFireListener = (info: TriggerFireInfo) => void;
-
-let listener: TriggerFireListener | null = null;
-
-export function bindTriggerFireFeedback(fn: TriggerFireListener | null): void {
-    listener = fn;
-}
-
-/** Notify listeners that a trigger successfully fired (with context). */
-export function reportTriggerFired(triggerId: string, context: TriggerContext): void {
-    if (!listener) {
-        return;
+/** Record that a trigger successfully fired (console + shared log buffer). */
+export function reportTriggerFired(
+    triggerId: string,
+    triggerName: string,
+    context: TriggerContext
+): void {
+    const parts = [`Trigger "${triggerName}" fired`];
+    if (typeof context.trainIndex === "number") {
+        parts.push(`train=${context.trainIndex}`);
     }
-    listener({
+    if (typeof context.carIndex === "number") {
+        parts.push(`car=${context.carIndex}`);
+    }
+    log("trigger", parts.join(" "), {
+        kind: "triggerFired",
         triggerId: triggerId,
-        tick: date.ticksElapsed,
         trainIndex: context.trainIndex,
         carIndex: context.carIndex
     });

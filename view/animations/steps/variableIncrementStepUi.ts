@@ -12,16 +12,18 @@ export function createVariableIncrementStepUi(fields: VariableStepFields): StepU
             if (desc.type !== "variableIncrement") {
                 return;
             }
-            fields.loadAmount(desc.variableId, desc.amount);
+            fields.loadAmount(desc.variableId, desc.amount, desc.amountOrigin, desc.amountVariableId);
         },
         persist: (current: StepDesc): StepDesc | null => {
             if (current.type !== "variableIncrement") {
                 return null;
             }
+            const amount = fields.readAmountSource();
             return {
                 type: "variableIncrement",
                 variableId: fields.selectedVariableId(),
-                amount: fields.readAmount()
+                amount: amount.value,
+                ...(amount.origin === "variable" ? {amountOrigin: "variable", amountVariableId: amount.variableId || ""} : {})
             };
         }
     };

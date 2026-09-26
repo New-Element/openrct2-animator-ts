@@ -1,13 +1,43 @@
 /// <reference path="./../../../../openrct2.d.ts" />
 
-import {groupbox, horizontal, label, spinner, store, twoway} from "openrct2-flexui";
+import {groupbox, store} from "openrct2-flexui";
+import {NumberSourceOrigin} from "../../../../model/animation/jsonTypes";
+import {createNumberSourceFields} from "./numberSourceFields";
 
 export function createCoordsFields(onPersist: () => void) {
     const visibility = store<"visible" | "none">("none");
-    const deltaX = store<number>(0);
-    const deltaY = store<number>(0);
-    const deltaZ = store<number>(0);
-    const durationTicks = store<number>(40);
+    const deltaXFields = createNumberSourceFields({
+        valueType: "int",
+        label: "ΔX",
+        minimum: -100000,
+        maximum: 100000,
+        onPersist: onPersist,
+        visibility: visibility
+    });
+    const deltaYFields = createNumberSourceFields({
+        valueType: "int",
+        label: "ΔY",
+        minimum: -100000,
+        maximum: 100000,
+        onPersist: onPersist,
+        visibility: visibility
+    });
+    const deltaZFields = createNumberSourceFields({
+        valueType: "int",
+        label: "ΔZ",
+        minimum: -100000,
+        maximum: 100000,
+        onPersist: onPersist,
+        visibility: visibility
+    });
+    const durationFields = createNumberSourceFields({
+        valueType: "int",
+        label: "Duration",
+        minimum: 1,
+        maximum: 100000,
+        onPersist: onPersist,
+        visibility: visibility
+    });
 
     function hide(): void {
         visibility.set("none");
@@ -15,24 +45,62 @@ export function createCoordsFields(onPersist: () => void) {
 
     function load(desc: {
         deltaX?: number;
+        deltaXOrigin?: NumberSourceOrigin;
+        deltaXVariableId?: string;
         deltaY?: number;
+        deltaYOrigin?: NumberSourceOrigin;
+        deltaYVariableId?: string;
         deltaZ?: number;
+        deltaZOrigin?: NumberSourceOrigin;
+        deltaZVariableId?: string;
         durationTicks: number;
+        durationTicksOrigin?: NumberSourceOrigin;
+        durationTicksVariableId?: string;
     }): void {
         visibility.set("visible");
-        deltaX.set(desc.deltaX || 0);
-        deltaY.set(desc.deltaY || 0);
-        deltaZ.set(desc.deltaZ || 0);
-        durationTicks.set(desc.durationTicks);
+        deltaXFields.load(desc.deltaX || 0, desc.deltaXOrigin, desc.deltaXVariableId);
+        deltaYFields.load(desc.deltaY || 0, desc.deltaYOrigin, desc.deltaYVariableId);
+        deltaZFields.load(desc.deltaZ || 0, desc.deltaZOrigin, desc.deltaZVariableId);
+        durationFields.load(desc.durationTicks, desc.durationTicksOrigin, desc.durationTicksVariableId);
+    }
+
+    function applyNamed(
+        data: {[key: string]: number | NumberSourceOrigin | string},
+        field: string,
+        source: {value: number; origin?: NumberSourceOrigin; variableId?: string}
+    ): void {
+        data[field] = source.value;
+        if (source.origin === "variable") {
+            data[`${field}Origin`] = "variable";
+            data[`${field}VariableId`] = source.variableId || "";
+        }
     }
 
     function readCoords() {
-        return {
-            deltaX: deltaX.get(),
-            deltaY: deltaY.get(),
-            deltaZ: deltaZ.get(),
-            durationTicks: durationTicks.get()
+        const data: {
+            deltaX: number;
+            deltaXOrigin?: NumberSourceOrigin;
+            deltaXVariableId?: string;
+            deltaY: number;
+            deltaYOrigin?: NumberSourceOrigin;
+            deltaYVariableId?: string;
+            deltaZ: number;
+            deltaZOrigin?: NumberSourceOrigin;
+            deltaZVariableId?: string;
+            durationTicks: number;
+            durationTicksOrigin?: NumberSourceOrigin;
+            durationTicksVariableId?: string;
+        } = {
+            deltaX: 0,
+            deltaY: 0,
+            deltaZ: 0,
+            durationTicks: 40
         };
+        applyNamed(data, "deltaX", deltaXFields.read());
+        applyNamed(data, "deltaY", deltaYFields.read());
+        applyNamed(data, "deltaZ", deltaZFields.read());
+        applyNamed(data, "durationTicks", durationFields.read());
+        return data;
     }
 
     const widgets = [
@@ -40,70 +108,10 @@ export function createCoordsFields(onPersist: () => void) {
             text: "Coordinates",
             visibility,
             content: [
-                horizontal([
-                    label({
-                        text: "ΔX",
-                        width: 24,
-                        visibility
-                    }),
-                    spinner({
-                        value: twoway(deltaX),
-                        minimum: -100000,
-                        maximum: 100000,
-                        visibility,
-                        onChange: (value) => {
-                            deltaX.set(value);
-                            onPersist();
-                        }
-                    }),
-                    label({
-                        text: "ΔY",
-                        width: 24,
-                        visibility
-                    }),
-                    spinner({
-                        value: twoway(deltaY),
-                        minimum: -100000,
-                        maximum: 100000,
-                        visibility,
-                        onChange: (value) => {
-                            deltaY.set(value);
-                            onPersist();
-                        }
-                    }),
-                    label({
-                        text: "ΔZ",
-                        width: 24,
-                        visibility
-                    }),
-                    spinner({
-                        value: twoway(deltaZ),
-                        minimum: -100000,
-                        maximum: 100000,
-                        visibility,
-                        onChange: (value) => {
-                            deltaZ.set(value);
-                            onPersist();
-                        }
-                    })
-                ]),
-                horizontal([
-                    label({
-                        text: "Duration",
-                        width: 55,
-                        visibility
-                    }),
-                    spinner({
-                        value: twoway(durationTicks),
-                        minimum: 1,
-                        maximum: 100000,
-                        visibility,
-                        onChange: (value) => {
-                            durationTicks.set(value);
-                            onPersist();
-                        }
-                    })
-                ])
+                ...deltaXFields.widgets,
+                ...deltaYFields.widgets,
+                ...deltaZFields.widgets,
+                ...durationFields.widgets
             ]
         })
     ];

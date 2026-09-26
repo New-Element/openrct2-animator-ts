@@ -1,15 +1,15 @@
 import {store} from "openrct2-flexui";
 import getConductor from "../../model/getConductor";
 import createVariable from "../../model/animation/variable/createVariable";
+import Variable, {formatVariableValue} from "../../model/animation/variable/variable";
+import {nextVariableName, validateVariableName} from "../../model/animation/variable/variableName";
 import uuidV4 from "../../model/util/uuid";
+import {showAlert} from "../ui/alertMessage";
 import {confirmResetVariables} from "./confirmResetVariables";
 import {openVariableEditor} from "./variableEditor";
+import {createFolderExplorer} from "../ui/folderExplorer";
 
 const searchText = store<string>("");
-const listItems = store<string[][]>([]);
-
-/** Variable ids matching the current filtered list order (for row click). */
-let visibleVariableIds: string[] = [];
 
 function displayName(name: string): string {
     const trimmed = name.trim();
@@ -24,64 +24,77 @@ function typeLabel(valueType: string): string {
             return "Float";
         case "string":
             return "String";
+        case "tile":
+            return "Tile";
+        case "coords":
+            return "Coords";
+        case "direction":
+            return "Direction";
         default:
             return valueType;
     }
 }
 
-function matchesSearch(name: string): boolean {
-    const query = searchText.get().trim().toLowerCase();
+function matchesSearch(variable: Variable, query: string): boolean {
     if (!query) {
         return true;
     }
-    return name.toLowerCase().indexOf(query) !== -1 ||
-        displayName(name).toLowerCase().indexOf(query) !== -1;
+    return variable.name.toLowerCase().indexOf(query) !== -1 ||
+        displayName(variable.name).toLowerCase().indexOf(query) !== -1;
 }
 
-export function refreshVariablesList(): void {
-    const variables = getConductor().variablesArray.items;
-    const rows: string[][] = [];
-    const ids: string[] = [];
-
-    for (let i = 0; i < variables.length; i++) {
-        const variable = variables[i];
-        if (!matchesSearch(variable.name)) {
-            continue;
+const explorer = createFolderExplorer<Variable>({
+    collection: "variables",
+    itemNoun: "Variable",
+    extraColumnCount: 3,
+    getItems: () => getConductor().variablesArray.items,
+    extraColumns: (variable) => [
+        typeLabel(variable.valueType),
+        formatVariableValue(variable.valueType, variable.value),
+        variable.isFormula() ? "Formula" : formatVariableValue(variable.valueType, variable.defaultValue)
+    ],
+    itemMatchesSearch: matchesSearch,
+    displayName: (variable) => displayName(variable.name),
+    getSearchQuery: () => searchText.get(),
+    clearSearch: () => searchText.set(""),
+    onOpenItem: (variable) => {
+        openVariableEditor(variable.id, refreshVariablesList);
+    },
+    onRenameItem: (variable, name) => {
+        const reason = validateVariableName(name, getConductor().variablesArray.items, variable.id);
+        if (reason) {
+            showAlert("Cannot Rename Variable", reason);
+            return;
         }
-        rows.push([
-            displayName(variable.name),
-            typeLabel(variable.valueType),
-            String(variable.value),
-            String(variable.defaultValue)
-        ]);
-        ids.push(variable.id);
+        variable.setName(name);
+    },
+    deleteItem: (variable) => {
+        getConductor().variablesArray.removeById(variable.id);
+    },
+    saveItems: () => {
+        getConductor().variablesArray.save();
     }
+});
 
-    visibleVariableIds = ids;
-    listItems.set(rows);
+export function refreshVariablesList(): void {
+    explorer.refresh();
 }
 
 export function addUntitledVariable(): void {
     const id = uuidV4();
+    const conductor = getConductor();
     const variable = createVariable({
         id: id,
-        name: "",
+        name: nextVariableName(conductor.variablesArray.items),
         valueType: "int",
         value: 0,
-        defaultValue: 0
+        defaultValue: 0,
+        folder: explorer.currentFolderPath()
     });
-    const conductor = getConductor();
     conductor.variablesArray.items.push(variable);
     conductor.variablesArray.save();
     refreshVariablesList();
     openVariableEditor(id, refreshVariablesList);
-}
-
-export function openVariableAtListIndex(index: number): void {
-    if (index < 0 || index >= visibleVariableIds.length) {
-        return;
-    }
-    openVariableEditor(visibleVariableIds[index], refreshVariablesList);
 }
 
 export function resetAllVariablesWithConfirm(): void {
@@ -95,9 +108,15 @@ export function resetAllVariablesWithConfirm(): void {
 
 export const variablesListModel = {
     searchText,
-    listItems,
+    pathText: explorer.pathText,
+    listItems: explorer.listItems,
+    selectedCell: explorer.selectedCell,
     refresh: refreshVariablesList,
+    onRowClick: explorer.onRowClick,
     addUntitledVariable,
-    openVariableAtListIndex,
-    resetAllVariablesWithConfirm
+    resetAllVariablesWithConfirm,
+    newFolder: explorer.newFolder,
+    renameSelected: explorer.renameSelected,
+    moveSelected: explorer.moveSelected,
+    deleteSelected: explorer.deleteSelected
 };

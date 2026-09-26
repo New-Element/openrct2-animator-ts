@@ -1,6 +1,7 @@
 import {store} from "openrct2-flexui";
 import getConductor from "../../model/getConductor";
 import createTrigger from "../../model/animation/trigger/createTrigger";
+import Trigger from "../../model/animation/trigger/trigger";
 import uuidV4 from "../../model/util/uuid";
 import {
     eventKindFromTrigger,
@@ -8,19 +9,17 @@ import {
     kindFromFilterIndex
 } from "./eventType";
 import {openTriggerEditor} from "./triggerEditor";
+import {logsListModel} from "../logs/logsListModel";
+import {createFolderExplorer} from "../ui/folderExplorer";
 
 const searchText = store<string>("");
 const filterEventIndex = store<number>(0);
-const listItems = store<string[][]>([]);
 
-/** Trigger ids matching the current filtered list order (for row click). */
-let visibleTriggerIds: string[] = [];
-
-function matchesFilters(name: string, eventLabel: string): boolean {
-    const query = searchText.get().trim().toLowerCase();
-    if (query && name.toLowerCase().indexOf(query) === -1) {
+function matchesFilters(trigger: Trigger, query: string): boolean {
+    if (query && trigger.name.toLowerCase().indexOf(query) === -1) {
         return false;
     }
+    const eventLabel = eventKindLabel(eventKindFromTrigger(trigger));
     const kind = kindFromFilterIndex(filterEventIndex.get());
     if (kind !== "all" && eventKindLabel(kind) !== eventLabel) {
         return false;
@@ -28,23 +27,36 @@ function matchesFilters(name: string, eventLabel: string): boolean {
     return true;
 }
 
-export function refreshTriggersList(): void {
-    const triggers = getConductor().triggersArray.items;
-    const rows: string[][] = [];
-    const ids: string[] = [];
-
-    for (let i = 0; i < triggers.length; i++) {
-        const trigger = triggers[i];
-        const eventLabel = eventKindLabel(eventKindFromTrigger(trigger));
-        if (!matchesFilters(trigger.name, eventLabel)) {
-            continue;
-        }
-        rows.push([trigger.name, eventLabel]);
-        ids.push(trigger.id);
+const explorer = createFolderExplorer<Trigger>({
+    collection: "triggers",
+    itemNoun: "Trigger",
+    extraColumnCount: 2,
+    getItems: () => getConductor().triggersArray.items,
+    extraColumns: (trigger) => [
+        eventKindLabel(eventKindFromTrigger(trigger)),
+        trigger.enabled ? "Y" : "N"
+    ],
+    itemMatchesSearch: matchesFilters,
+    displayName: (trigger) => trigger.name,
+    getSearchQuery: () => searchText.get(),
+    clearSearch: () => searchText.set(""),
+    onOpenItem: (trigger) => {
+        openTriggerEditor(trigger.id, refreshTriggersList);
+    },
+    onRenameItem: (trigger, name) => {
+        trigger.setName(name);
+    },
+    deleteItem: (trigger) => {
+        getConductor().triggersArray.removeById(trigger.id);
+    },
+    saveItems: () => {
+        getConductor().triggersArray.save();
     }
+});
 
-    visibleTriggerIds = ids;
-    listItems.set(rows);
+export function refreshTriggersList(): void {
+    explorer.refresh();
+    logsListModel.refreshFilterOptions();
 }
 
 export function addUntitledTrigger(): void {
@@ -54,7 +66,8 @@ export function addUntitledTrigger(): void {
         name: "Untitled trigger",
         event: null,
         conditions: [],
-        animationIds: []
+        animationIds: [],
+        folder: explorer.currentFolderPath()
     });
     const conductor = getConductor();
     conductor.triggersArray.items.push(trigger);
@@ -63,18 +76,17 @@ export function addUntitledTrigger(): void {
     openTriggerEditor(id, refreshTriggersList);
 }
 
-export function openTriggerAtListIndex(index: number): void {
-    if (index < 0 || index >= visibleTriggerIds.length) {
-        return;
-    }
-    openTriggerEditor(visibleTriggerIds[index], refreshTriggersList);
-}
-
 export const triggersListModel = {
     searchText,
     filterEventIndex,
-    listItems,
+    pathText: explorer.pathText,
+    listItems: explorer.listItems,
+    selectedCell: explorer.selectedCell,
     refresh: refreshTriggersList,
+    onRowClick: explorer.onRowClick,
     addUntitledTrigger,
-    openTriggerAtListIndex
+    newFolder: explorer.newFolder,
+    renameSelected: explorer.renameSelected,
+    moveSelected: explorer.moveSelected,
+    deleteSelected: explorer.deleteSelected
 };

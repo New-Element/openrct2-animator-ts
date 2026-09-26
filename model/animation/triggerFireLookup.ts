@@ -1,9 +1,10 @@
 import TriggerContext from "./trigger/triggerContext";
+import {error} from "../logger";
 
 type FireTriggerFn = (triggerId: string, context: TriggerContext) => void;
 
 let fireTriggerImpl: FireTriggerFn = () => {
-    console.log("[FireTrigger] Conductor not bound");
+    error("fireTrigger", "Conductor not bound");
 };
 
 export function bindFireTrigger(fn: FireTriggerFn): void {

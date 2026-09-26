@@ -2,15 +2,22 @@
 
 import MapTile from "../../../../game/mapTile";
 import TileCoords from "../../../../game/tileCoords";
-import {LiftDropTrackStepDesc} from "../../jsonTypes";
+import {LiftDropStageTriggers, LiftDropTrackStepDesc, NumberSourceOrigin} from "../../jsonTypes";
 import {
     persistVehicleTargetFields,
     resolveTargetTrainCars,
     usesTriggerTarget
 } from "../car/vehicleTarget";
+import {persistNumberSource, resolveNumberSource} from "../numberSource";
+import {logMetaFromRun} from "../stepHelpers";
 import Step from "../step";
 import StepRunContext from "../stepRunContext";
-import {landHeightToPixels, readLiftDropLandHeight} from "../../liftDropHeights";
+import {landHeightToPixels, readLiftDropLandHeight, readLiftDropWaitTicks} from "../../liftDropHeights";
+import {fireTriggerById} from "../../triggerFireLookup";
+import {copyContextLists} from "../../trigger/contextLists";
+import TriggerContext from "../../trigger/triggerContext";
+
+type LiftDropStageKey = keyof LiftDropStageTriggers;
 
 const VehicleState = {
     Empty: 0,
@@ -33,13 +40,6 @@ interface VehicleStartDetails {
     velocity: number;
 }
 
-const VEHICLE_STATE_NAMES = ["Empty", "Entering", "Locked", "Exiting"];
-const LIFT_STATE_NAMES = ["Idle", "Traveling", "TargetReached", "Returning"];
-
-function liftLog(message: string): void {
-    console.log(`[LiftDropTrack] ${message}`);
-}
-
 /**
  * Advanced Track Lift/Drop Track parity: fade-stop, travel with train, release,
  * wait for leave, return track empty.
@@ -51,16 +51,29 @@ function liftLog(message: string): void {
 export default class LiftDropTrackStep extends Step {
     /** Authored land units (persisted). */
     startHeight: number;
+    startHeightOrigin?: NumberSourceOrigin;
+    startHeightVariableId?: string;
     endHeight: number;
+    endHeightOrigin?: NumberSourceOrigin;
+    endHeightVariableId?: string;
     speed: number;
+    speedOrigin?: NumberSourceOrigin;
+    speedVariableId?: string;
     reverseExitDirection: boolean;
+    /** Ticks stopped after the train halts, before the track moves. Default 50. */
+    waitBeforeMoveTicks: number;
+    /** Ticks stopped after the track arrives, before speed is restored. Default 0. */
+    waitAfterMoveTicks: number;
     useTriggerTarget: boolean = true;
     rideId?: number;
     trainIndex?: number;
+    stageTriggers: LiftDropStageTriggers = {};
 
     /** Runtime pixel Z (land × 8). */
     private startZPx: number = 0;
     private endZPx: number = 0;
+    /** Runtime speed percent after variable resolve. */
+    private runSpeed: number = 100;
 
     private lockTile: TileCoords = {x: 0, y: 0};
     private vehicleState: number = VehicleState.Empty;
@@ -73,20 +86,28 @@ export default class LiftDropTrackStep extends Step {
     private noop: boolean = false;
     private tickCount: number = 0;
     private enteringTicks: number = 0;
-    private lastLoggedVehicleState: number = -1;
-    private lastLoggedLiftState: number = -1;
     private headCarId: number | null = null;
     private lastTravelT: number = 0;
     private returnFromT: number = 1;
+    private firedStages: {[key: string]: boolean} = {};
 
     constructor(obj: LiftDropTrackStepDesc) {
         super(obj);
         this.startHeight = readLiftDropLandHeight(obj, "start");
+        this.startHeightOrigin = obj.startHeightOrigin;
+        this.startHeightVariableId = obj.startHeightVariableId;
         this.endHeight = readLiftDropLandHeight(obj, "end");
+        this.endHeightOrigin = obj.endHeightOrigin;
+        this.endHeightVariableId = obj.endHeightVariableId;
         this.startZPx = landHeightToPixels(this.startHeight);
         this.endZPx = landHeightToPixels(this.endHeight);
         this.speed = typeof obj.speed === "number" ? obj.speed : 100;
+        this.speedOrigin = obj.speedOrigin;
+        this.speedVariableId = obj.speedVariableId;
+        this.runSpeed = this.speed;
         this.reverseExitDirection = obj.reverseExitDirection === true;
+        this.waitBeforeMoveTicks = readLiftDropWaitTicks(obj.waitBeforeMoveTicks, 50);
+        this.waitAfterMoveTicks = readLiftDropWaitTicks(obj.waitAfterMoveTicks, 0);
         this.useTriggerTarget = usesTriggerTarget(obj);
         if (typeof obj.rideId === "number") {
             this.rideId = obj.rideId;
@@ -94,11 +115,7 @@ export default class LiftDropTrackStep extends Step {
         if (typeof obj.trainIndex === "number") {
             this.trainIndex = obj.trainIndex;
         }
-        if (this.startHeight === this.endHeight) {
-            console.log(
-                `[LiftDropTrack] WARNING startHeight === endHeight (${this.startHeight}) — track will not move`
-            );
-        }
+        this.stageTriggers = obj.stageTriggers ? {...obj.stageTriggers} : {};
     }
 
     onStart(run: StepRunContext): void {
@@ -112,20 +129,15 @@ export default class LiftDropTrackStep extends Step {
         this.trainReleased = false;
         this.tickCount = 0;
         this.enteringTicks = 0;
-        this.lastLoggedVehicleState = -1;
-        this.lastLoggedLiftState = -1;
         this.headCarId = null;
         this.lastTravelT = 0;
         this.returnFromT = 1;
-        this.startZPx = landHeightToPixels(this.startHeight);
-        this.endZPx = landHeightToPixels(this.endHeight);
+        this.firedStages = {};
+        this.resolveRunHeightsAndSpeed(run);
 
         const cars = resolveTargetTrainCars(run, this);
         const head = cars.length > 0 ? cars[0] : null;
         if (!head || head.id === null) {
-            liftLog(
-                `onStart: no train (useTriggerTarget=${this.useTriggerTarget}, rideId=${this.rideId}, trainIndex=${this.trainIndex}) → noop`
-            );
             this.noop = true;
             this.done = true;
             return;
@@ -133,6 +145,7 @@ export default class LiftDropTrackStep extends Step {
 
         this.headCarId = head.id;
         this.lockTile = resolveLockTile(run, head);
+        this.applySkippedStartHeightFromLock();
         this.vehicleStartDetails = {
             x: head.x,
             y: head.y,
@@ -141,28 +154,21 @@ export default class LiftDropTrackStep extends Step {
         };
         this.gatherAffectedTiles(head);
         this.vehicleState = VehicleState.Entering;
+        // Hard-stop immediately. Waiting for the Entering fade lets fast trains
+        // cover many tiles before velocity hits 0 and they crash off the end.
+        this.stopTrain(head);
         // Validity runs at the start of every tick. During Entering/Locked the
         // train can briefly report trackLocation (0,0) even while still on the
         // lock — without this the run aborts before the stop finishes.
         run.triggerContext.allowOffTile = true;
 
-        const triggerTile = run.triggerContext.tile;
         const lockMapTile = MapTile.at(this.lockTile);
         const lockTrack = lockMapTile ? lockMapTile.firstTrack() : null;
         const lockBasePx = lockTrack ? lockTrack.baseHeight * 8 : -1;
-        liftLog(
-            `onStart: head=${head.id} cars=${cars.length} lock=(${this.lockTile.x},${this.lockTile.y}) ` +
-                `triggerTile=${triggerTile ? `(${triggerTile.x},${triggerTile.y})` : "none"} ` +
-                `startHeight=${this.startHeight} endHeight=${this.endHeight} ` +
-                `startZPx=${this.startZPx} endZPx=${this.endZPx} lockTrackZ=${lockBasePx} ` +
-                `speed=${this.speed} affectedTiles=${this.affectedTiles.length} ` +
-                `entryVel=${head.velocity} reverseExit=${this.reverseExitDirection}`
-        );
         if (lockBasePx >= 0 && Math.abs(lockBasePx - this.startZPx) > 8) {
-            liftLog(
-                `onStart: WARNING lock track Z ${lockBasePx} != startZPx ${this.startZPx}`
-            );
         }
+
+        this.fireStageTrigger("trainEnters", run);
     }
 
     onTick(run: StepRunContext): void {
@@ -185,7 +191,6 @@ export default class LiftDropTrackStep extends Step {
             }
         }
 
-        this.logStateIfChanged();
 
         let time = 0;
         let easeFunc: (x: number) => number = easeSine;
@@ -196,25 +201,19 @@ export default class LiftDropTrackStep extends Step {
                     break;
                 }
                 this.enteringTicks += 1;
+                // Keep forcing a full stop every tick (game may re-apply velocity).
+                this.stopTrain(car);
                 const distanceTravelled =
                     Math.abs(this.vehicleStartDetails.x - car.x) +
                     Math.abs(this.vehicleStartDetails.y - car.y);
-                const fadeProgress = Math.min(
-                    16,
-                    Math.max(distanceTravelled, this.enteringTicks)
-                );
-
-                car.acceleration = 0;
-                if (fadeProgress >= 16 || car.velocity === 0 || this.enteringTicks >= 16) {
-                    car.velocity = 0;
+                // AT: Locked once distance > 16 or velocity is 0. We already
+                // hard-stopped in onStart, so settle quickly into Locked.
+                if (
+                    distanceTravelled > 16 ||
+                    car.velocity === 0 ||
+                    this.enteringTicks >= 1
+                ) {
                     this.vehicleState = VehicleState.Locked;
-                    liftLog(
-                        `tick ${this.tickCount}: Entering → Locked ` +
-                            `(distance=${distanceTravelled}, enteringTicks=${this.enteringTicks})`
-                    );
-                } else {
-                    car.velocity =
-                        this.vehicleStartDetails.velocity * (1 - fadeProgress / 32);
                 }
                 break;
             }
@@ -222,22 +221,20 @@ export default class LiftDropTrackStep extends Step {
                 if (!car) {
                     break;
                 }
-                car.velocity = 0;
-                car.acceleration = 0;
+                this.stopTrain(car);
                 // Keep the whole train in a normal on-track status while held.
                 this.forceTrainTravelling(car);
 
                 if (this.liftState === LiftState.Idle) {
-                    if (this.tickTimerUpdate(50) === 1) {
+                    if (this.tickTimerUpdate(this.waitBeforeMoveTicks) === 1) {
                         // Keep the onStart tile set — re-gathering here can pick up
                         // stale trackLocation values and drag half the ride down.
                         this.liftState = LiftState.Traveling;
-                        this.logRideVehicles(run, "travel-start");
-                        liftLog(
-                            `tick ${this.tickCount}: Locked idle wait done → Traveling ` +
-                                `(durationTicks=${this.travelDurationTicks()}) ` +
-                                `headStatus=${car.status} affectedTiles=${this.affectedTiles.length}`
-                        );
+                        this.fireStageTrigger("verticalMoveStarts", run);
+                    }
+                } else if (this.liftState === LiftState.TargetReached) {
+                    if (this.tickTimerUpdate(this.waitAfterMoveTicks) === 1) {
+                        this.beginExit(car, run);
                     }
                 }
                 break;
@@ -266,21 +263,19 @@ export default class LiftDropTrackStep extends Step {
             }
             case VehicleState.Empty: {
                 if (this.liftState === LiftState.Idle) {
-                    liftLog(`tick ${this.tickCount}: abort Empty/Idle before travel`);
                     this.done = true;
                     break;
                 }
                 if (this.liftState === LiftState.TargetReached) {
                     if (this.tickTimerUpdate(50) === 1) {
                         this.liftState = LiftState.Returning;
-                        liftLog(`tick ${this.tickCount}: post-leave wait done → Returning`);
+                        this.fireStageTrigger("restoreStarts", run);
                     }
                 }
                 break;
             }
         }
 
-        this.logStateIfChanged();
 
         switch (this.liftState) {
             case LiftState.Traveling: {
@@ -290,23 +285,16 @@ export default class LiftDropTrackStep extends Step {
                     easeFunc = easeCubic;
                 }
                 this.updatePosition(time, car, easeFunc);
-                if (this.tickCount % 20 === 0 || time === 1) {
-                    liftLog(
-                        `tick ${this.tickCount}: Traveling t=${time.toFixed(3)} carZ=${car ? car.z : "n/a"}`
-                    );
-                }
                 if (time === 1) {
                     this.liftState = LiftState.TargetReached;
                     this.returnFromT = 1;
-                    // AT: Traveling done → Exiting immediately (no exit wait).
-                    this.vehicleState = VehicleState.Exiting;
-                    if (car) {
-                        this.prepareTrainForExit(car, run);
+                    this.fireStageTrigger("verticalMoveEnds", run);
+                    // 0 ticks: restore speed on the next tick, same as before this option.
+                    if (this.waitAfterMoveTicks <= 0 && car) {
+                        this.beginExit(car, run);
+                    } else if (this.waitAfterMoveTicks <= 0) {
+                        this.vehicleState = VehicleState.Exiting;
                     }
-                    liftLog(
-                        `tick ${this.tickCount}: Traveling done → Exiting ` +
-                            `(targetVel=${this.resolveExitVelocity()})`
-                    );
                 }
                 break;
             }
@@ -316,42 +304,97 @@ export default class LiftDropTrackStep extends Step {
                 this.updatePosition(returnT, car, easeSine);
                 if (time === 1) {
                     this.liftState = LiftState.Idle;
+                    this.fireStageTrigger("restoreEnds", run);
                     this.done = true;
-                    liftLog(`tick ${this.tickCount}: Returning done → step complete`);
                 }
                 break;
             }
         }
     }
 
-    private logStateIfChanged(): void {
-        if (
-            this.vehicleState === this.lastLoggedVehicleState &&
-            this.liftState === this.lastLoggedLiftState
-        ) {
-            return;
-        }
-        liftLog(
-            `tick ${this.tickCount}: state ` +
-                `${VEHICLE_STATE_NAMES[this.vehicleState]}/${LIFT_STATE_NAMES[this.liftState]}`
-        );
-        this.lastLoggedVehicleState = this.vehicleState;
-        this.lastLoggedLiftState = this.liftState;
-    }
 
     isComplete(_run: StepRunContext): boolean {
         return this.done;
     }
 
     getDataToPersist(): object {
+        const stageTriggers = persistStageTriggers(this.stageTriggers);
         return {
             type: "liftDropTrack",
-            startHeight: this.startHeight,
-            endHeight: this.endHeight,
-            speed: this.speed,
+            ...persistNamedNumber("startHeight", this.startHeight, this.startHeightOrigin, this.startHeightVariableId),
+            ...persistNamedNumber("endHeight", this.endHeight, this.endHeightOrigin, this.endHeightVariableId),
+            ...persistNamedNumber("speed", this.speed, this.speedOrigin, this.speedVariableId),
             reverseExitDirection: this.reverseExitDirection,
+            waitBeforeMoveTicks: this.waitBeforeMoveTicks,
+            waitAfterMoveTicks: this.waitAfterMoveTicks,
+            ...(stageTriggers ? {stageTriggers: stageTriggers} : {}),
             ...persistVehicleTargetFields(this)
         };
+    }
+
+    private resolveRunHeightsAndSpeed(run: StepRunContext): void {
+        const meta = logMetaFromRun(run);
+        const start = resolveNumberSource(
+            this.startHeight,
+            this.startHeightOrigin,
+            this.startHeightVariableId,
+            "int",
+            "Lift/Drop Track Start Height",
+            meta
+        );
+        const end = resolveNumberSource(
+            this.endHeight,
+            this.endHeightOrigin,
+            this.endHeightVariableId,
+            "int",
+            "Lift/Drop Track End Height",
+            meta
+        );
+        const speed = resolveNumberSource(
+            this.speed,
+            this.speedOrigin,
+            this.speedVariableId,
+            "int",
+            "Lift/Drop Track Speed",
+            meta
+        );
+        const startLand = start === null ? this.startHeight : start;
+        const endLand = end === null ? startLand : end;
+        this.startZPx = landHeightToPixels(startLand);
+        this.endZPx = landHeightToPixels(endLand);
+        this.runSpeed = speed === null ? 100 : speed;
+        this.skippedStartHeight = start === null && this.startHeightOrigin === "variable";
+        this.skippedEndHeight = end === null && this.endHeightOrigin === "variable";
+    }
+
+    private skippedStartHeight: boolean = false;
+    private skippedEndHeight: boolean = false;
+
+    private applySkippedStartHeightFromLock(): void {
+        if (!this.skippedStartHeight) {
+            return;
+        }
+        const lockMapTile = MapTile.at(this.lockTile);
+        const lockTrack = lockMapTile ? lockMapTile.firstTrack() : null;
+        if (!lockTrack) {
+            return;
+        }
+        this.startZPx = landHeightToPixels(lockTrack.baseHeight);
+        if (this.skippedEndHeight) {
+            this.endZPx = this.startZPx;
+        }
+    }
+
+    private fireStageTrigger(stage: LiftDropStageKey, run: StepRunContext): void {
+        if (this.firedStages[stage]) {
+            return;
+        }
+        const triggerId = this.stageTriggers[stage];
+        if (typeof triggerId !== "string" || !triggerId) {
+            return;
+        }
+        this.firedStages[stage] = true;
+        fireTriggerById(triggerId, cleanTriggerContext(run.triggerContext));
     }
 
     private resolveExitVelocity(): number {
@@ -360,7 +403,7 @@ export default class LiftDropTrackStep extends Step {
     }
 
     private travelDurationTicks(): number {
-        const speed = this.speed <= 0 ? 1 : this.speed;
+        const speed = this.runSpeed <= 0 ? 1 : this.runSpeed;
         // AT duration uses pixel Z span.
         return Math.abs(this.endZPx - this.startZPx) * (100 / speed);
     }
@@ -438,12 +481,6 @@ export default class LiftDropTrackStep extends Step {
             }
         }
 
-        liftLog(
-            `gatherAffectedTiles: lock=(${this.lockTile.x},${this.lockTile.y}) ` +
-                `bbox=(${minX},${minY})-(${maxX},${maxY}) lockBase=${lockBaseHeight} ` +
-                `trackTiles=${this.affectedTiles.length} ` +
-                `[${this.affectedTiles.map((t) => `${t.x},${t.y}`).join(" | ")}]`
-        );
     }
 
     /**
@@ -489,24 +526,16 @@ export default class LiftDropTrackStep extends Step {
     private updateCollisionSensing(run: StepRunContext): void {
         const cars = resolveTargetTrainCars(run, this);
         if (cars.length === 0) {
-            liftLog(`tick ${this.tickCount}: train unresolved during exit → clear`);
             this.onTrainExit();
             return;
         }
 
         if (this.isTrainClearOfAffectedTiles(cars)) {
-            liftLog(
-                `tick ${this.tickCount}: train clear of ${this.affectedTiles.length} affected tiles → leave`
-            );
             this.onTrainExit();
         }
     }
 
     private onTrainExit(): void {
-        liftLog(
-            `tick ${this.tickCount}: onTrainExit from ` +
-                `${VEHICLE_STATE_NAMES[this.vehicleState]}/${LIFT_STATE_NAMES[this.liftState]}`
-        );
         this.tickTimerCount = 0;
         this.trainReleased = true;
         this.vehicleStartDetails = null;
@@ -517,10 +546,6 @@ export default class LiftDropTrackStep extends Step {
         if (this.vehicleState === VehicleState.Empty && this.trainReleased) {
             return;
         }
-        liftLog(
-            `tick ${this.tickCount}: train lost while ` +
-                `${VEHICLE_STATE_NAMES[this.vehicleState]}/${LIFT_STATE_NAMES[this.liftState]}`
-        );
         this.trainReleased = true;
         this.vehicleStartDetails = null;
         this.vehicleState = VehicleState.Empty;
@@ -534,16 +559,13 @@ export default class LiftDropTrackStep extends Step {
             this.returnFromT = this.lastTravelT > 0 ? this.lastTravelT : 1;
             this.tickTimerCount = 0;
             this.liftState = LiftState.Returning;
-            liftLog(
-                `tick ${this.tickCount}: Traveling interrupted → Returning from t=${this.returnFromT.toFixed(3)}`
-            );
+            this.fireStageTrigger("restoreStarts", run);
             return;
         }
         if (this.liftState === LiftState.Returning) {
             return;
         }
         this.tickTimerCount = 0;
-        liftLog(`tick ${this.tickCount}: train lost at destination → wait then Returning`);
     }
 
     private resolveHeadCar(run: StepRunContext): Car | null {
@@ -563,6 +585,23 @@ export default class LiftDropTrackStep extends Step {
         }
         this.headCarId = head.id;
         return head;
+    }
+
+    /** Zero velocity/acceleration on every car in the train. */
+    private stopTrain(head: Car): void {
+        let thisCar: Car | null = head;
+        while (thisCar != null) {
+            thisCar.velocity = 0;
+            thisCar.acceleration = 0;
+            if (thisCar.nextCarOnTrain == null) {
+                break;
+            }
+            const next = map.getEntity(thisCar.nextCarOnTrain);
+            if (!next || next.type !== "car") {
+                break;
+            }
+            thisCar = next as Car;
+        }
     }
 
     /** Force every car onto normal track-travel status (clears boat/station glitches). */
@@ -586,11 +625,16 @@ export default class LiftDropTrackStep extends Step {
         }
     }
 
+    /** End the post-move hold and start ramping velocity back. */
+    private beginExit(car: Car, run: StepRunContext): void {
+        this.vehicleState = VehicleState.Exiting;
+        this.prepareTrainForExit(car, run);
+    }
+
     /**
      * Final AT-style seat + status before exit velocity ramp.
      */
     private prepareTrainForExit(head: Car, run: StepRunContext): void {
-        this.logRideVehicles(run, "before-exit-prepare");
         this.forceTrainTravelling(head);
         const heightDifference = this.endZPx - this.startZPx;
         let thisCar: Car | null = head;
@@ -606,12 +650,6 @@ export default class LiftDropTrackStep extends Step {
             if (this.vehicleStartDetails) {
                 thisCar.z = this.vehicleStartDetails.z + heightDifference;
             }
-            liftLog(
-                `prepareTrainForExit: car[${carIndex}] id=${thisCar.id} ` +
-                    `status=${thisCar.status} crashed=${thisCar.isCrashed} ` +
-                    `xy=(${thisCar.x},${thisCar.y}) z=${thisCar.z} ` +
-                    `track=(${Math.floor(thisCar.trackLocation.x / 32)},${Math.floor(thisCar.trackLocation.y / 32)})`
-            );
             if (thisCar.nextCarOnTrain == null) {
                 break;
             }
@@ -622,25 +660,8 @@ export default class LiftDropTrackStep extends Step {
             thisCar = next as Car;
             carIndex += 1;
         }
-        this.logRideVehicles(run, "after-exit-prepare");
     }
 
-    private logRideVehicles(run: StepRunContext, label: string): void {
-        const rideId = run.triggerContext.rideId;
-        if (typeof rideId !== "number") {
-            liftLog(`${label}: no rideId on context`);
-            return;
-        }
-        const ride = map.getRide(rideId);
-        if (!ride) {
-            liftLog(`${label}: ride ${rideId} missing`);
-            return;
-        }
-        liftLog(
-            `${label}: ride.vehicles=[${ride.vehicles.join(",")}] ` +
-                `trainIndex=${run.triggerContext.trainIndex}`
-        );
-    }
 
     /**
      * AT updatePosition: ease time, move track heights, then moveToTrack + z
@@ -672,10 +693,6 @@ export default class LiftDropTrackStep extends Step {
                 const before = track.baseHeight;
                 mapTile.adjustTrackHeight(track, heightDelta);
                 if (verbose) {
-                    liftLog(
-                        `updatePosition: tile (${tileCoords.x},${tileCoords.y}) ` +
-                            `baseHeight ${before}→${track.baseHeight} delta=${heightDelta}`
-                    );
                 }
             }
         }
@@ -713,6 +730,19 @@ export default class LiftDropTrackStep extends Step {
     }
 }
 
+function persistNamedNumber(
+    field: string,
+    hardcoded: number,
+    origin: NumberSourceOrigin | undefined,
+    variableId: string | undefined
+): {[key: string]: number | NumberSourceOrigin | string} {
+    const source = persistNumberSource(hardcoded, origin === "variable" ? "variable" : "hardcoded", variableId || "");
+    return {
+        [field]: source.value,
+        ...(source.origin === "variable" ? {[`${field}Origin`]: "variable", [`${field}VariableId`]: source.variableId || ""} : {})
+    };
+}
+
 function resolveLockTile(run: StepRunContext, head: Car): TileCoords {
     const triggerTile = run.triggerContext.tile;
     if (
@@ -726,6 +756,61 @@ function resolveLockTile(run: StepRunContext, head: Car): TileCoords {
         x: Math.floor(head.trackLocation.x / 32),
         y: Math.floor(head.trackLocation.y / 32)
     };
+}
+
+/** Original fire fields only — strip runtime flags like allowOffTile. */
+function cleanTriggerContext(context: TriggerContext): TriggerContext {
+    const next: TriggerContext = {
+        target: context.target
+    };
+    if (typeof context.rideId === "number") {
+        next.rideId = context.rideId;
+    }
+    if (typeof context.trainIndex === "number") {
+        next.trainIndex = context.trainIndex;
+    }
+    if (typeof context.carIndex === "number") {
+        next.carIndex = context.carIndex;
+    }
+    if (context.tile) {
+        next.tile = {x: context.tile.x, y: context.tile.y};
+    }
+    if (typeof context.variableId === "string") {
+        next.variableId = context.variableId;
+    }
+    if (context.variableValue !== undefined) {
+        next.variableValue = context.variableValue;
+    }
+    copyContextLists(context, next);
+    return next;
+}
+
+function persistStageTriggers(
+    stageTriggers: LiftDropStageTriggers
+): LiftDropStageTriggers | undefined {
+    const next: LiftDropStageTriggers = {};
+    if (typeof stageTriggers.trainEnters === "string" && stageTriggers.trainEnters) {
+        next.trainEnters = stageTriggers.trainEnters;
+    }
+    if (
+        typeof stageTriggers.verticalMoveStarts === "string" &&
+        stageTriggers.verticalMoveStarts
+    ) {
+        next.verticalMoveStarts = stageTriggers.verticalMoveStarts;
+    }
+    if (
+        typeof stageTriggers.verticalMoveEnds === "string" &&
+        stageTriggers.verticalMoveEnds
+    ) {
+        next.verticalMoveEnds = stageTriggers.verticalMoveEnds;
+    }
+    if (typeof stageTriggers.restoreStarts === "string" && stageTriggers.restoreStarts) {
+        next.restoreStarts = stageTriggers.restoreStarts;
+    }
+    if (typeof stageTriggers.restoreEnds === "string" && stageTriggers.restoreEnds) {
+        next.restoreEnds = stageTriggers.restoreEnds;
+    }
+    return Object.keys(next).length > 0 ? next : undefined;
 }
 
 function easeCubic(x: number): number {

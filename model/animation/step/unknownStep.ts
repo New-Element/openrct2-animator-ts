@@ -1,4 +1,4 @@
-import reportPluginError from "../../reportPluginError";
+import {error} from "../../logger";
 import {StepDescBase} from "../jsonTypes";
 import InstantStep from "./instantStep";
 import StepRunContext from "./stepRunContext";
@@ -12,7 +12,7 @@ export default class UnknownStep extends InstantStep {
     constructor(obj: StepDescBase) {
         super(obj);
         this.raw = obj;
-        reportPluginError("step", `Unknown step type: ${obj.type}`);
+        error("step", `Unknown step type: ${obj.type}`);
     }
 
     protected apply(_run: StepRunContext): void {

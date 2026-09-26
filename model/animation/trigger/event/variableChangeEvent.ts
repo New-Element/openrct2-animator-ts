@@ -1,5 +1,6 @@
-import {VariableChangeEventDesc} from "../../jsonTypes";
+import {VariableChangeEventDesc, VariableStoredValue} from "../../jsonTypes";
 import {findVariableById} from "../../variableLookup";
+import {withContextLists} from "../contextLists";
 import TriggerContext from "../triggerContext";
 import TriggerEvent from "./triggerEvent";
 
@@ -8,7 +9,7 @@ export default class VariableChangeEvent extends TriggerEvent {
     variableId: string;
 
     private seeded: boolean = false;
-    private lastValue: number | string | undefined;
+    private lastValue: VariableStoredValue | undefined;
 
     constructor(obj: VariableChangeEventDesc) {
         super(obj);
@@ -44,11 +45,11 @@ export default class VariableChangeEvent extends TriggerEvent {
         }
         this.lastValue = current;
         return [
-            {
+            withContextLists({
                 target: { static: true },
                 variableId: this.variableId,
                 variableValue: current
-            }
+            })
         ];
     }
 
