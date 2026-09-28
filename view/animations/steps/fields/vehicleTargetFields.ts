@@ -23,8 +23,9 @@ export type VehicleTargetFieldLabels = {
 export function createVehicleTargetFields(
     rideSelect: RideSelectFields,
     onPersist: () => void,
-    labels?: VehicleTargetFieldLabels
+    labels?: VehicleTargetFieldLabels & {allowTrigger?: boolean}
 ) {
+    const allowTrigger = !labels || labels.allowTrigger !== false;
     const sectionVisibility = store<"visible" | "none">("none");
     const vehicleTargetVisibility = store<"visible" | "none">("none");
     const vehicleCarVisibility = store<"visible" | "none">("none");
@@ -83,15 +84,23 @@ export function createVehicleTargetFields(
     }
 
     function syncVehicleTargetVisibility(): void {
-        const useTrigger = useTriggerTargetChecked.get();
+        if (sectionVisibility.get() !== "visible") {
+            vehicleTargetVisibility.set("none");
+            vehicleCarVisibility.set("none");
+            return;
+        }
+        const useTrigger = allowTrigger && useTriggerTargetChecked.get();
         vehicleTargetVisibility.set(useTrigger ? "none" : "visible");
         vehicleCarVisibility.set(!useTrigger && isCarStep ? "visible" : "none");
     }
 
+    function setShown(shown: boolean): void {
+        sectionVisibility.set(shown ? "visible" : "none");
+        syncVehicleTargetVisibility();
+    }
+
     function hide(): void {
-        sectionVisibility.set("none");
-        vehicleTargetVisibility.set("none");
-        vehicleCarVisibility.set("none");
+        setShown(false);
     }
 
     function load(desc: VehicleTargetDescSlice, carStep: boolean): void {
@@ -107,7 +116,7 @@ export function createVehicleTargetFields(
                 ? (labels && labels.carTitle) || "Select Car"
                 : (labels && labels.trainTitle) || "Select Train"
         );
-        useTriggerTargetChecked.set(desc.useTriggerTarget !== false);
+        useTriggerTargetChecked.set(allowTrigger && desc.useTriggerTarget !== false);
         syncVehicleTargetVisibility();
         rideSelect.refreshRideOptions();
         const rideId =
@@ -140,7 +149,7 @@ export function createVehicleTargetFields(
     }
 
     function readTarget(): VehicleTargetDescSlice {
-        const useTrigger = useTriggerTargetChecked.get();
+        const useTrigger = allowTrigger && useTriggerTargetChecked.get();
         if (useTrigger) {
             return {useTriggerTarget: true};
         }
@@ -163,7 +172,7 @@ export function createVehicleTargetFields(
                 checkbox({
                     text: applyToTriggerLabel,
                     isChecked: twoway(useTriggerTargetChecked),
-                    visibility: sectionVisibility,
+                    visibility: allowTrigger ? sectionVisibility : "none",
                     onChange: (checked) => {
                         useTriggerTargetChecked.set(checked);
                         syncVehicleTargetVisibility();
@@ -265,7 +274,7 @@ export function createVehicleTargetFields(
         })
     ];
 
-    return {hide, load, readTarget, widgets};
+    return {hide, setShown, load, readTarget, widgets};
 }
 
 export type VehicleTargetFields = ReturnType<typeof createVehicleTargetFields>;

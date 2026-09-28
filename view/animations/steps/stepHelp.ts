@@ -205,6 +205,11 @@ const HELP: {[key: string]: StepHelp} = {
         "This step slides every car in a train through the air over time, by a delta from where they are now.",
         DELTA + " There is no train picker: this uses the trigger train."
     ),
+    trackPositionOverTime: entry(
+        "Track Position Over Time",
+        "This step moves every car in a train along the track over time. Position is how far the front car travels, in pixels. One tile is 32 pixels. Positive position moves forward along the track. Spacing is extra pixels between each car and the car in front of it. Positive spacing opens the gaps: the front car still moves by Position, and each car further back moves that many pixels less.",
+        "Position, Spacing, and Duration can each be a typed number or a variable. Duration is how many ticks the move takes. " + VEHICLE_TRAIN
+    ),
     trackSetHeight: entry(
         "Set Track Height",
         "This step moves a track piece up or down to a height. Cars on that piece move with it.",
@@ -489,6 +494,16 @@ const HELP: {[key: string]: StepHelp} = {
         "Path Litter",
         "This step adds or removes litter on a path tile.",
         "Tile chooses the path. " + TILE + " " + MODE + " Litter is the litter type."
+    ),
+    createParticle: entry(
+        "Create Particle",
+        "This step spawns one steam puff, explosion cloud, or explosion flare. Steam rises and fades. The cloud and the flare play in place, then disappear. None of them fly across the map.",
+        "Particle is Steam, Explosion Cloud, or Explosion Flare. Launch From Car uses that car's position. Launch From Tile Centre uses the middle of the tile. Z is the height in world units. One land height step is 8. Pick Tile chooses the tile on the map."
+    ),
+    shootParticles: entry(
+        "Shoot Particles",
+        "This step throws crash debris, the same sprites a coaster crash uses. The game moves them after this step finishes. They are not flame drawings. Short life and warm colours are what make a jet read as fire.",
+        "Launch From matches Create Particle. Count is how many sprites. Direction 0 goes along +Y, 90 along +X. Tilt 0 is flat, 90 is straight up. Spread is random degrees either side of that aim. Distance is tiles along the aim. Lifetime is ticks until they vanish. A tick is one game step, 40 per real second. Body and Trim are one colour pair. Body 2 and Trim 2 are the other. Each sprite uses one pair or the other. A flat shot is given enough upward push to stay about level instead of falling into the ground."
     ),
     parkMessage: entry(
         "Park Message",

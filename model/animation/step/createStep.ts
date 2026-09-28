@@ -12,7 +12,9 @@ import {
     CarToggleStepDesc,
     ClearAwardsStepDesc,
     ContextMutateStepDesc,
+    CreateParticleStepDesc,
     CustomJavascriptStepDesc,
+    ShootParticlesStepDesc,
     EdgeStyleStepDesc,
     FreezeWeatherStepDesc,
     GamePauseStepDesc,
@@ -65,6 +67,7 @@ import {
     TrackHighlightedStepDesc,
     TrackInvertedStepDesc,
     TrackSeatRotationStepDesc,
+    TrackPositionOverTimeStepDesc,
     TrackSetHeightStepDesc,
     TrainCoordsOverTimeStepDesc,
     TrainEditColourStepDesc,
@@ -92,6 +95,7 @@ import {
     CarStatusStep,
     CarToggleStep
 } from "./car/carPropertySteps";
+import TrackPositionOverTimeStep from "./car/trackPositionOverTimeStep";
 import TrainCoordsOverTimeStep from "./car/trainCoordsOverTimeStep";
 import TrainEditColourStep from "./car/trainEditColourStep";
 import {
@@ -154,6 +158,8 @@ import {
 import {SetCarCoordsStep, SetStaffCoordsStep} from "./applyCoordsSteps";
 import ContextMutateStep from "./contextMutateStep";
 import CustomJavascriptStep from "./customJavascriptStep";
+import CreateParticleStep from "./createParticleStep";
+import ShootParticlesStep from "./shootParticlesStep";
 import Step from "./step";
 import LiftDropTrackStep from "./track/liftDropTrackStep";
 import SwitchTiTrackOrderStep from "./track/switchTiTrackOrderStep";
@@ -228,6 +234,8 @@ export default function createStep(data: StepDesc | StepDescBase): Step {
             return new CarCoordsOverTimeStep(data as CarCoordsOverTimeStepDesc);
         case "trainCoordsOverTime":
             return new TrainCoordsOverTimeStep(data as TrainCoordsOverTimeStepDesc);
+        case "trackPositionOverTime":
+            return new TrackPositionOverTimeStep(data as TrackPositionOverTimeStepDesc);
         case "sceneryVisibility":
             return new SceneryVisibilityStep(data as SceneryVisibilityStepDesc);
         case "sceneryRecolour":
@@ -264,6 +272,10 @@ export default function createStep(data: StepDesc | StepDescBase): Step {
             return new PathBinFullStep(data as PathBinFullStepDesc);
         case "pathLitter":
             return new PathLitterStep(data as PathLitterStepDesc);
+        case "createParticle":
+            return new CreateParticleStep(data as CreateParticleStepDesc);
+        case "shootParticles":
+            return new ShootParticlesStep(data as ShootParticlesStepDesc);
         case "bannerText":
             return new BannerTextStep(data as BannerTextStepDesc);
         case "bannerColours":

@@ -154,9 +154,6 @@ export default class LiftDropTrackStep extends Step {
         };
         this.gatherAffectedTiles(head);
         this.vehicleState = VehicleState.Entering;
-        // Hard-stop immediately. Waiting for the Entering fade lets fast trains
-        // cover many tiles before velocity hits 0 and they crash off the end.
-        this.stopTrain(head);
         // Validity runs at the start of every tick. During Entering/Locked the
         // train can briefly report trackLocation (0,0) even while still on the
         // lock — without this the run aborts before the stop finishes.
@@ -201,19 +198,21 @@ export default class LiftDropTrackStep extends Step {
                     break;
                 }
                 this.enteringTicks += 1;
-                // Keep forcing a full stop every tick (game may re-apply velocity).
-                this.stopTrain(car);
                 const distanceTravelled =
                     Math.abs(this.vehicleStartDetails.x - car.x) +
                     Math.abs(this.vehicleStartDetails.y - car.y);
-                // AT: Locked once distance > 16 or velocity is 0. We already
-                // hard-stopped in onStart, so settle quickly into Locked.
-                if (
-                    distanceTravelled > 16 ||
-                    car.velocity === 0 ||
-                    this.enteringTicks >= 1
-                ) {
+                const fadeProgress = Math.min(
+                    16,
+                    Math.max(distanceTravelled, this.enteringTicks)
+                );
+
+                car.acceleration = 0;
+                if (fadeProgress >= 16 || car.velocity === 0 || this.enteringTicks >= 16) {
+                    car.velocity = 0;
                     this.vehicleState = VehicleState.Locked;
+                } else {
+                    car.velocity =
+                        this.vehicleStartDetails.velocity * (1 - fadeProgress / 32);
                 }
                 break;
             }
@@ -221,7 +220,8 @@ export default class LiftDropTrackStep extends Step {
                 if (!car) {
                     break;
                 }
-                this.stopTrain(car);
+                car.velocity = 0;
+                car.acceleration = 0;
                 // Keep the whole train in a normal on-track status while held.
                 this.forceTrainTravelling(car);
 
@@ -585,23 +585,6 @@ export default class LiftDropTrackStep extends Step {
         }
         this.headCarId = head.id;
         return head;
-    }
-
-    /** Zero velocity/acceleration on every car in the train. */
-    private stopTrain(head: Car): void {
-        let thisCar: Car | null = head;
-        while (thisCar != null) {
-            thisCar.velocity = 0;
-            thisCar.acceleration = 0;
-            if (thisCar.nextCarOnTrain == null) {
-                break;
-            }
-            const next = map.getEntity(thisCar.nextCarOnTrain);
-            if (!next || next.type !== "car") {
-                break;
-            }
-            thisCar = next as Car;
-        }
     }
 
     /** Force every car onto normal track-travel status (clears boat/station glitches). */

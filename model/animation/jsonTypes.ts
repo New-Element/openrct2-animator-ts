@@ -691,6 +691,24 @@ export interface TrainCoordsOverTimeStepDesc extends EntityCoordsOverTimeStepDes
     type: "trainCoordsOverTime";
 }
 
+/**
+ * Move a train along the track over time.
+ * position: pixels the front car travels. Positive is forward along the track.
+ * spacing: extra pixels between each car and the one in front. Positive opens the gaps.
+ */
+export interface TrackPositionOverTimeStepDesc extends StepDescBase, VehicleTargetDesc {
+    type: "trackPositionOverTime";
+    position?: number;
+    positionOrigin?: NumberSourceOrigin;
+    positionVariableId?: string;
+    spacing?: number;
+    spacingOrigin?: NumberSourceOrigin;
+    spacingVariableId?: string;
+    durationTicks: number;
+    durationTicksOrigin?: NumberSourceOrigin;
+    durationTicksVariableId?: string;
+}
+
 export type SceneryObjectType = "small_scenery" | "large_scenery" | "wall";
 
 export type SceneryVisibilityMode = "visible" | "invisible" | "toggle";
@@ -864,6 +882,47 @@ export interface PathLitterStepDesc extends StepDescBase, TileTargetDesc {
     type: "pathLitter";
     mode: OnOffToggle;
     litterType: LitterType;
+}
+
+/** A particle that plays in place. Crash debris that can be thrown is a later step. */
+export type CreateParticleKind = "steam" | "explosionCloud" | "explosionFlare";
+
+/** Where a Create Particle step spawns. */
+export type CreateParticleLaunch = "car" | "tile";
+
+export interface CreateParticleStepDesc extends StepDescBase, VehicleTargetDesc {
+    type: "createParticle";
+    particle: CreateParticleKind;
+    /** Missing on the first saves of this step, which used raw coordinates. Those load as a car launch. */
+    launch?: CreateParticleLaunch;
+    /** Map tile when launch is tile. The particle is placed at the tile centre. */
+    tile?: TileCoords;
+    /** World-unit height when launch is tile. One land height step is 8. */
+    z?: number;
+}
+
+export interface ShootParticlesStepDesc extends StepDescBase, VehicleTargetDesc {
+    type: "shootParticles";
+    launch?: CreateParticleLaunch;
+    tile?: TileCoords;
+    /** World-unit height when launch is tile. One land height step is 8. */
+    z?: number;
+    /** How many crash-debris sprites to throw. */
+    count: number;
+    /** Degrees around the map. 0 is +Y, 90 is +X. */
+    direction: number;
+    /** Degrees up from flat. 0 skims, 90 goes straight up. */
+    tilt: number;
+    /** Random degrees either side of direction and tilt. */
+    spread: number;
+    /** How far the shot should travel, in tiles. */
+    distance: number;
+    /** Ticks until the debris is removed. A tick is one game step, 40 per real second. */
+    lifetime: number;
+    body: number;
+    trim: number;
+    body2: number;
+    trim2: number;
 }
 
 export interface BannerTextStepDesc extends StepDescBase, TileTargetDesc {
@@ -1270,6 +1329,7 @@ export type StepDesc =
     | LiftDropTrackStepDesc
     | CarCoordsOverTimeStepDesc
     | TrainCoordsOverTimeStepDesc
+    | TrackPositionOverTimeStepDesc
     | SceneryVisibilityStepDesc
     | SceneryRecolourStepDesc
     | SceneryRotationStepDesc
@@ -1288,6 +1348,8 @@ export type StepDesc =
     | PathAdditionVandalisedStepDesc
     | PathBinFullStepDesc
     | PathLitterStepDesc
+    | CreateParticleStepDesc
+    | ShootParticlesStepDesc
     | BannerTextStepDesc
     | BannerColoursStepDesc
     | BannerNoEntryStepDesc

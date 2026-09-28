@@ -44,7 +44,7 @@ export const ADD_STEP_CATEGORIES: readonly AddStepCategory[] = [
     },
     {
         label: "Trains",
-        addLabels: ["Recolour Train", "Train Coords Over Time"]
+        addLabels: ["Recolour Train", "Train Coords Over Time", "Track Position Over Time"]
     },
     {
         label: "Track",
@@ -126,6 +126,10 @@ export const ADD_STEP_CATEGORIES: readonly AddStepCategory[] = [
     {
         label: "Path Additions",
         addLabels: ["Path Addition Vandalised", "Bin Full", "Path Litter"]
+    },
+    {
+        label: "Particles",
+        addLabels: ["Create Particle", "Shoot Particles"]
     },
     {
         label: "Park",

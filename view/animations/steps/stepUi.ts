@@ -17,6 +17,8 @@ import {createContextMutateFields} from "./fields/contextMutateFields";
 import {createColourFields} from "./fields/colourFields";
 import {createCoordsFields} from "./fields/coordsFields";
 import {createCustomJavascriptFields} from "./fields/customJavascriptFields";
+import {createParticleFields} from "./fields/createParticleFields";
+import {createShootParticlesFields} from "./fields/shootParticlesFields";
 import {createGuestStepFields} from "./fields/guestStepFields";
 import {createLiftDropTrackFields} from "./fields/liftDropTrackFields";
 import {createParkStepFields} from "./fields/parkStepFields";
@@ -31,6 +33,7 @@ import {createStaffStepFields} from "./fields/staffStepFields";
 import {createSurfaceFields} from "./fields/surfaceFields";
 import {createSwitchTiTrackOrderFields} from "./fields/switchTiTrackOrderFields";
 import {createTrackChainLiftFields} from "./fields/trackChainLiftFields";
+import {createTrackPositionOverTimeFields} from "./fields/trackPositionOverTimeFields";
 import {createTrackFields} from "./fields/trackFields";
 import {createTrackPropertyFields} from "./fields/trackPropertyFields";
 import {createVariableRandomIntFields} from "./fields/variableRandomIntFields";
@@ -39,12 +42,15 @@ import {createVehicleTargetFields} from "./fields/vehicleTargetFields";
 import {createWriteMapValueFields} from "./fields/writeMapValueFields";
 import {createWaitFields} from "./fields/waitFields";
 import {createCustomJavascriptStepUi} from "./customJavascriptStepUi";
+import {createCreateParticleStepUi} from "./createParticleStepUi";
+import {createShootParticlesStepUi} from "./shootParticlesStepUi";
 import {createLiftDropTrackStepUi} from "./liftDropTrackStepUi";
 import {createSceneryVisibilityStepUi} from "./sceneryVisibilityStepUi";
 import {StepUiModule} from "./stepUiTypes";
 import {createSwitchTiTrackOrderStepUi} from "./switchTiTrackOrderStepUi";
 import {createTrackChainLiftStepUi} from "./trackChainLiftStepUi";
 import {createTrackSetHeightStepUi} from "./trackSetHeightStepUi";
+import {createTrackPositionOverTimeStepUi} from "./trackPositionOverTimeStepUi";
 import {createTrainCoordsOverTimeStepUi} from "./trainCoordsOverTimeStepUi";
 import {createTrainEditColourStepUi} from "./trainEditColourStepUi";
 import {createVariableDecrementStepUi} from "./variableDecrementStepUi";
@@ -98,6 +104,7 @@ export function createStepEditorUi(onPersist: () => void, getStepCount: () => nu
     const trackChainLift = createTrackChainLiftFields(rideSelect, onPersist);
     const liftDropTrack = createLiftDropTrackFields(onPersist);
     const coords = createCoordsFields(onPersist);
+    const trackPosition = createTrackPositionOverTimeFields(onPersist);
     const sceneryVisibility = createSceneryVisibilityFields(onPersist);
     const sceneryRecolour = createSceneryRecolourFields(onPersist);
     const sceneryRotation = createSceneryRotationFields(onPersist);
@@ -115,6 +122,8 @@ export function createStepEditorUi(onPersist: () => void, getStepCount: () => nu
     const staff = createStaffStepFields(onPersist);
     const park = createParkStepFields(onPersist);
     const customJavascript = createCustomJavascriptFields(onPersist);
+    const createParticle = createParticleFields(onPersist, rideSelect);
+    const shootParticles = createShootParticlesFields(onPersist, rideSelect);
     const contextMutate = createContextMutateFields(onPersist);
     const branch = createBranchStepUi(onPersist, getStepCount);
 
@@ -143,6 +152,7 @@ export function createStepEditorUi(onPersist: () => void, getStepCount: () => nu
         createLiftDropTrackStepUi(liftDropTrack, vehicleTarget),
         createCarCoordsOverTimeStepUi(coords, vehicleTarget),
         createTrainCoordsOverTimeStepUi(coords),
+        createTrackPositionOverTimeStepUi(trackPosition, vehicleTarget),
         createSceneryVisibilityStepUi(sceneryVisibility),
         ...createInstantStepModules({
             sceneryRecolour,
@@ -163,6 +173,8 @@ export function createStepEditorUi(onPersist: () => void, getStepCount: () => nu
             park
         }),
         createCustomJavascriptStepUi(customJavascript),
+        createCreateParticleStepUi(createParticle),
+        createShootParticlesStepUi(shootParticles),
         branch.module
     ];
 
@@ -222,6 +234,7 @@ export function createStepEditorUi(onPersist: () => void, getStepCount: () => nu
         trackChainLift.hide();
         liftDropTrack.hide();
         coords.hide();
+        trackPosition.hide();
         sceneryVisibility.hide();
         sceneryRecolour.hide();
         sceneryRotation.hide();
@@ -239,6 +252,8 @@ export function createStepEditorUi(onPersist: () => void, getStepCount: () => nu
         staff.hide();
         park.hide();
         customJavascript.hide();
+        createParticle.hide();
+        shootParticles.hide();
         contextMutate.hide();
         branch.hide();
     }
@@ -280,8 +295,8 @@ export function createStepEditorUi(onPersist: () => void, getStepCount: () => nu
         refreshRideOptions: () => rideSelect.refreshRideOptions(),
         widgets: [
             ...wait.widgets,
-            ...colour.widgets,
             ...vehicleTarget.widgets,
+            ...colour.widgets,
             ...variable.widgets,
             ...randomInt.widgets,
             ...writeMap.widgets,
@@ -291,6 +306,7 @@ export function createStepEditorUi(onPersist: () => void, getStepCount: () => nu
             ...trackChainLift.widgets,
             ...liftDropTrack.widgets,
             ...coords.widgets,
+            ...trackPosition.widgets,
             ...sceneryVisibility.widgets,
             ...sceneryRecolour.widgets,
             ...sceneryRotation.widgets,
@@ -308,6 +324,8 @@ export function createStepEditorUi(onPersist: () => void, getStepCount: () => nu
             ...staff.widgets,
             ...park.widgets,
             ...customJavascript.widgets,
+            ...createParticle.widgets,
+            ...shootParticles.widgets,
             ...contextMutate.widgets,
             ...branch.widgets
         ]
