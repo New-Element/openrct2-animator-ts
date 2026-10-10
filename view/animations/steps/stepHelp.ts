@@ -510,6 +510,11 @@ const HELP: {[key: string]: StepHelp} = {
         "This step posts a message in the park news. Guests and the player can see it.",
         "Type is the message kind. Text is the wording. " + STRING + " Tick Set next to Subject to attach a ride or other subject number."
     ),
+    startFireworks: entry(
+        "Start Fireworks",
+        "This step starts a named show in the Fireworks plugin. The Fireworks plugin must be installed. The show must be enabled, and its trigger must be External Plugin.",
+        "Show lists those shows. The list loads when this step is shown."
+    ),
     freezeWeather: entry(
         "Freeze Weather",
         "This step freezes the weather in place, or lets it change again.",

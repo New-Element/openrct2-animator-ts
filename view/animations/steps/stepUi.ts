@@ -17,6 +17,7 @@ import {createContextMutateFields} from "./fields/contextMutateFields";
 import {createColourFields} from "./fields/colourFields";
 import {createCoordsFields} from "./fields/coordsFields";
 import {createCustomJavascriptFields} from "./fields/customJavascriptFields";
+import {createStartFireworksFields} from "./fields/startFireworksFields";
 import {createParticleFields} from "./fields/createParticleFields";
 import {createShootParticlesFields} from "./fields/shootParticlesFields";
 import {createGuestStepFields} from "./fields/guestStepFields";
@@ -42,6 +43,7 @@ import {createVehicleTargetFields} from "./fields/vehicleTargetFields";
 import {createWriteMapValueFields} from "./fields/writeMapValueFields";
 import {createWaitFields} from "./fields/waitFields";
 import {createCustomJavascriptStepUi} from "./customJavascriptStepUi";
+import {createStartFireworksStepUi} from "./startFireworksStepUi";
 import {createCreateParticleStepUi} from "./createParticleStepUi";
 import {createShootParticlesStepUi} from "./shootParticlesStepUi";
 import {createLiftDropTrackStepUi} from "./liftDropTrackStepUi";
@@ -122,6 +124,7 @@ export function createStepEditorUi(onPersist: () => void, getStepCount: () => nu
     const staff = createStaffStepFields(onPersist);
     const park = createParkStepFields(onPersist);
     const customJavascript = createCustomJavascriptFields(onPersist);
+    const startFireworks = createStartFireworksFields(onPersist);
     const createParticle = createParticleFields(onPersist, rideSelect);
     const shootParticles = createShootParticlesFields(onPersist, rideSelect);
     const contextMutate = createContextMutateFields(onPersist);
@@ -173,6 +176,7 @@ export function createStepEditorUi(onPersist: () => void, getStepCount: () => nu
             park
         }),
         createCustomJavascriptStepUi(customJavascript),
+        createStartFireworksStepUi(startFireworks),
         createCreateParticleStepUi(createParticle),
         createShootParticlesStepUi(shootParticles),
         branch.module
@@ -252,6 +256,7 @@ export function createStepEditorUi(onPersist: () => void, getStepCount: () => nu
         staff.hide();
         park.hide();
         customJavascript.hide();
+        startFireworks.hide();
         createParticle.hide();
         shootParticles.hide();
         contextMutate.hide();
@@ -324,6 +329,7 @@ export function createStepEditorUi(onPersist: () => void, getStepCount: () => nu
             ...staff.widgets,
             ...park.widgets,
             ...customJavascript.widgets,
+            ...startFireworks.widgets,
             ...createParticle.widgets,
             ...shootParticles.widgets,
             ...contextMutate.widgets,

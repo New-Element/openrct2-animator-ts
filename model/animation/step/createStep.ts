@@ -52,6 +52,7 @@ import {
     SetCarCoordsStepDesc,
     SetStaffCoordsStepDesc,
     SpawnGuestStepDesc,
+    StartFireworksStepDesc,
     StaffAnimationStepDesc,
     StaffCostumeStepDesc,
     StaffFlagStepDesc,
@@ -158,6 +159,7 @@ import {
 import {SetCarCoordsStep, SetStaffCoordsStep} from "./applyCoordsSteps";
 import ContextMutateStep from "./contextMutateStep";
 import CustomJavascriptStep from "./customJavascriptStep";
+import StartFireworksStep from "./startFireworksStep";
 import CreateParticleStep from "./createParticleStep";
 import ShootParticlesStep from "./shootParticlesStep";
 import Step from "./step";
@@ -372,6 +374,8 @@ export default function createStep(data: StepDesc | StepDescBase): Step {
             return new ViewportCameraStep(data as ViewportCameraStepDesc);
         case "customJavascript":
             return new CustomJavascriptStep(data as CustomJavascriptStepDesc);
+        case "startFireworks":
+            return new StartFireworksStep(data as StartFireworksStepDesc);
         case "branch":
             return new BranchStep(data as BranchStepDesc);
         case "contextMutate":

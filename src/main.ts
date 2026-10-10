@@ -1,5 +1,6 @@
 /// <reference path="./../openrct2.d.ts" />
 
+import {registerAnimatorReceiveShowNames} from "../model/fireworks/showNames";
 import getConductor from "../model/getConductor";
 import { PLUGIN_VERSION } from "../model/pluginInfo";
 import {toggleRemainingHighlight} from "../view/todos/remainingHighlight";
@@ -16,6 +17,7 @@ registerPlugin({
     minApiVersion: 56,
     targetApiVersion: 56,
     main: () => {
+        registerAnimatorReceiveShowNames();
         bindScriptRoofMode(applyTabRoofMode);
         getConductor();
         ui.registerMenuItem("Animator", () => JsonEntry.open());

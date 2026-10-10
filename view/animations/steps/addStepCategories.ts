@@ -146,6 +146,10 @@ export const ADD_STEP_CATEGORIES: readonly AddStepCategory[] = [
     {
         label: "View",
         addLabels: ["Viewport Camera", "Write Camera Rotation", "Game Pause", "Game Speed"]
+    },
+    {
+        label: "Other Plugins",
+        addLabels: ["Start Fireworks"]
     }
 ];
 

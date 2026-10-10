@@ -1295,6 +1295,11 @@ export interface CustomJavascriptStepDesc extends StepDescBase {
     code: string;
 }
 
+export interface StartFireworksStepDesc extends StepDescBase {
+    type: "startFireworks";
+    showName: string;
+}
+
 /** Where a Branch step goes. A number is a 0-based step index. */
 export type BranchTarget = number | "end";
 
@@ -1391,6 +1396,7 @@ export type StepDesc =
     | ParkDateStepDesc
     | ViewportCameraStepDesc
     | CustomJavascriptStepDesc
+    | StartFireworksStepDesc
     | ContextMutateStepDesc
     | BranchStepDesc;
 
